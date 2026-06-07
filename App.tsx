@@ -1,20 +1,33 @@
+import 'react-native-url-polyfill/auto';
+import 'react-native-gesture-handler';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { AuthProvider } from './src/context/AuthContext';
+import { EventsProvider } from './src/context/EventsContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { BadgeProvider } from './src/context/BadgeContext';
+import AppNavigator from './src/navigation/AppNavigator';
 
-export default function App() {
+function Root() {
+  const { isDark } = useTheme();
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <AppNavigator />
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <EventsProvider>
+          <BadgeProvider>
+            <Root />
+          </BadgeProvider>
+        </EventsProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
