@@ -39,6 +39,8 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
   const [region, setRegion] = useState<Region>(ALMATY_REGION);
   const slideAnim = useRef(new Animated.Value(320)).current;
@@ -66,7 +68,20 @@ export default function MapScreen() {
     else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert('Ошибка', e.message));
   }
 
-  function showRoute() {
+  function formatRouteDistance(meters: number) {
+    if (meters < 1000) return `${Math.round(meters)} м`;
+    return `${(meters / 1000).toFixed(1)} км`;
+  }
+
+  function formatRouteDuration(seconds: number) {
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    if (minutes < 60) return `${minutes} мин`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours} ч ${rest} мин` : `${hours} ч`;
+  }
+
+  async function showRoute() {
     if (!selectedEvent) return;
     if (!userLocation) {
       Alert.alert('', 'Разреши геолокацию, чтобы построить маршрут');
@@ -74,10 +89,52 @@ export default function MapScreen() {
     }
 
     setRouteTargetId(selectedEvent.id);
-    mapRef.current?.fitToCoordinates([userLocation, selectedEvent.coordinate], {
-      edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
-      animated: true,
-    });
+    setRouteInfo(null);
+
+    try {
+      const start = `${userLocation.longitude},${userLocation.latitude}`;
+      const end = `${selectedEvent.coordinate.longitude},${selectedEvent.coordinate.latitude}`;
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`
+      );
+
+      if (!response.ok) throw new Error('Route service unavailable');
+
+      const data = await response.json();
+      const route = data.routes?.[0];
+      const coordinates = route?.geometry?.coordinates;
+
+      if (!Array.isArray(coordinates) || coordinates.length === 0) {
+        throw new Error('Route not found');
+      }
+
+      const nextCoordinates = coordinates.map(([longitude, latitude]: [number, number]) => ({
+        latitude,
+        longitude,
+      }));
+
+      setRouteCoordinates(nextCoordinates);
+      setRouteInfo({
+        distance: formatRouteDistance(route.distance ?? 0),
+        duration: formatRouteDuration(route.duration ?? 0),
+      });
+
+      mapRef.current?.fitToCoordinates(nextCoordinates, {
+        edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
+        animated: true,
+      });
+    } catch {
+      const fallbackCoordinates = [userLocation, selectedEvent.coordinate];
+      setRouteCoordinates(fallbackCoordinates);
+      setRouteInfo({
+        distance: getDistance(userLocation, selectedEvent.coordinate),
+        duration: 'примерно',
+      });
+      mapRef.current?.fitToCoordinates(fallbackCoordinates, {
+        edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
+        animated: true,
+      });
+    }
   }
 
   function zoom(multiplier: number) {
@@ -108,9 +165,9 @@ export default function MapScreen() {
             </View>
           </Marker>
         )}
-        {userLocation && routeTarget && (
+        {routeCoordinates.length > 0 && (
           <Polyline
-            coordinates={[userLocation, routeTarget.coordinate]}
+            coordinates={routeCoordinates}
             strokeColor="#2E9E5D"
             strokeWidth={5}
           />
@@ -161,10 +218,21 @@ export default function MapScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.routeBannerTitle}>Маршрут показан</Text>
             <Text style={styles.routeBannerText} numberOfLines={1}>
-              {userLocation ? `${getDistance(userLocation, routeTarget.coordinate)} до "${routeTarget.title}"` : routeTarget.title}
+              {routeInfo
+                ? `${routeInfo.distance} · ${routeInfo.duration} до "${routeTarget.title}"`
+                : userLocation
+                  ? `${getDistance(userLocation, routeTarget.coordinate)} до "${routeTarget.title}"`
+                  : routeTarget.title}
             </Text>
           </View>
-          <TouchableOpacity style={styles.routeClose} onPress={() => setRouteTargetId(null)}>
+          <TouchableOpacity
+            style={styles.routeClose}
+            onPress={() => {
+              setRouteTargetId(null);
+              setRouteCoordinates([]);
+              setRouteInfo(null);
+            }}
+          >
             <Text style={styles.routeCloseText}>×</Text>
           </TouchableOpacity>
         </View>
