@@ -10,7 +10,7 @@ import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } 
 import EventMarker from '../components/EventMarker';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
-import { useLocation, getDistance } from '../hooks/useLocation';
+import { useLocation, getDistance, openRoute } from '../hooks/useLocation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -171,6 +171,12 @@ export default function MapScreen() {
               <Text style={styles.detailsBtnText}>Подробнее</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={styles.routeBtn}
+              onPress={() => openRoute(selectedEvent.coordinate, selectedEvent.title)}
+            >
+              <Text style={styles.routeBtnText}>Маршрут</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.joinBtn, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnActive]}
               onPress={handleJoin}
               disabled={!user || (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active')}
@@ -282,6 +288,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EEFF',
   },
   detailsBtnText: { fontSize: 15, fontWeight: '800', color: '#5B4FCF' },
+  routeBtn: {
+    flex: 1, borderRadius: 16, paddingVertical: 13, alignItems: 'center',
+    backgroundColor: '#EAF7EF',
+  },
+  routeBtnText: { fontSize: 15, fontWeight: '800', color: '#2E9E5D' },
   joinBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 14,
     borderWidth: 2, borderColor: '#5B4FCF', alignItems: 'center',

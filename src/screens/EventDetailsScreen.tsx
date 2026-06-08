@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
 import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
+import { getDistance, openRoute, useLocation } from '../hooks/useLocation';
 
 type EventDetailsRoute = RouteProp<RootStackParamList, 'EventDetails'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -21,6 +22,7 @@ export default function EventDetailsScreen() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const { events, joinEvent, leaveEvent, isJoined, updateEventStatus } = useEvents();
+  const userLocation = useLocation();
   const event = events.find(e => e.id === eventId);
 
   if (!event) {
@@ -98,6 +100,13 @@ export default function EventDetailsScreen() {
           <Text style={[styles.title, { color: theme.text }]}>{event.title}</Text>
           <Text style={[styles.meta, { color: theme.subtext }]}>Время: {event.datetime}</Text>
           {event.address ? <Text style={[styles.meta, { color: theme.subtext }]}>Место: {event.address}</Text> : null}
+          {userLocation ? (
+            <Text style={[styles.meta, { color: theme.subtext }]}>
+              Расстояние: {getDistance(userLocation, event.coordinate)}
+            </Text>
+          ) : (
+            <Text style={[styles.meta, { color: theme.subtext }]}>Расстояние: включите геолокацию</Text>
+          )}
           {event.cancelReason ? (
             <View style={styles.cancelBox}>
               <Text style={styles.cancelTitle}>Причина отмены</Text>
@@ -156,6 +165,13 @@ export default function EventDetailsScreen() {
 
           <TouchableOpacity style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={shareEvent}>
             <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>Поделиться</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.secondaryButton, { borderColor: theme.border }]}
+            onPress={() => openRoute(event.coordinate, event.title)}
+          >
+            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>Построить маршрут</Text>
           </TouchableOpacity>
         </View>
 
