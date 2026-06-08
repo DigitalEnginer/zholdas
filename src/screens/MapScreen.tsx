@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Alert,
 } from 'react-native';
-import MapView, { PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
@@ -10,7 +10,7 @@ import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } 
 import EventMarker from '../components/EventMarker';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
-import { useLocation, getDistance, openRoute } from '../hooks/useLocation';
+import { useLocation, getDistance } from '../hooks/useLocation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -33,12 +33,15 @@ export default function MapScreen() {
   const { events, joinEvent, leaveEvent, isJoined } = useEvents();
   const { user } = useAuth();
   const userLocation = useLocation();
+  const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
   const slideAnim = useRef(new Animated.Value(320)).current;
 
   const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
   const selectedEvent = filteredEvents.find(e => e.id === selectedId) ?? null;
+  const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
 
   function openSheet(id: string) {
     setSelectedId(id);
@@ -59,15 +62,44 @@ export default function MapScreen() {
     else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert('Ошибка', e.message));
   }
 
+  function showRoute() {
+    if (!selectedEvent) return;
+    if (!userLocation) {
+      Alert.alert('', 'Разреши геолокацию, чтобы построить маршрут');
+      return;
+    }
+
+    setRouteTargetId(selectedEvent.id);
+    mapRef.current?.fitToCoordinates([userLocation, selectedEvent.coordinate], {
+      edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
+      animated: true,
+    });
+  }
+
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={ALMATY_REGION}
-        showsUserLocation
+        showsUserLocation={false}
         showsCompass={false}
       >
+        {userLocation && (
+          <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.userMarker}>
+              <View style={styles.userMarkerCore} />
+            </View>
+          </Marker>
+        )}
+        {userLocation && routeTarget && (
+          <Polyline
+            coordinates={[userLocation, routeTarget.coordinate]}
+            strokeColor="#2E9E5D"
+            strokeWidth={5}
+          />
+        )}
         {filteredEvents.map(event => (
           <EventMarker
             key={event.id}
@@ -98,6 +130,20 @@ export default function MapScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {routeTarget && (
+        <View style={styles.routeBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.routeBannerTitle}>Маршрут показан</Text>
+            <Text style={styles.routeBannerText} numberOfLines={1}>
+              {userLocation ? `${getDistance(userLocation, routeTarget.coordinate)} до "${routeTarget.title}"` : routeTarget.title}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.routeClose} onPress={() => setRouteTargetId(null)}>
+            <Text style={styles.routeCloseText}>×</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <TouchableOpacity
         style={styles.createFab}
@@ -172,7 +218,7 @@ export default function MapScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.routeBtn}
-              onPress={() => openRoute(selectedEvent.coordinate, selectedEvent.title)}
+              onPress={showRoute}
             >
               <Text style={styles.routeBtnText}>Маршрут</Text>
             </TouchableOpacity>
@@ -210,6 +256,22 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+  userMarker: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(47, 128, 237, 0.18)',
+    borderWidth: 2,
+    borderColor: '#2F80ED',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userMarkerCore: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#2F80ED',
+  },
   header: {
     position: 'absolute', top: 56, left: 16, right: 16,
     backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: 14,
@@ -234,6 +296,35 @@ const styles = StyleSheet.create({
   filterEmoji: { fontSize: 13 },
   filterLabel: { fontSize: 12, color: '#555', fontWeight: '600' },
   filterLabelActive: { color: '#FFF' },
+  routeBanner: {
+    position: 'absolute',
+    top: 202,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  routeBannerTitle: { color: '#2E9E5D', fontSize: 13, fontWeight: '900' },
+  routeBannerText: { color: '#555', fontSize: 12, marginTop: 2 },
+  routeClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#EAF7EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  routeCloseText: { color: '#2E9E5D', fontSize: 22, fontWeight: '700', lineHeight: 24 },
   createFab: {
     position: 'absolute', bottom: 100, right: 16,
     backgroundColor: '#5B4FCF', borderRadius: 24,
@@ -282,27 +373,27 @@ const styles = StyleSheet.create({
   participantsLabel: { fontSize: 13, color: '#555', marginBottom: 8, fontWeight: '500' },
   progressBar: { height: 6, backgroundColor: '#F0EEFF', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#5B4FCF', borderRadius: 3 },
-  sheetActions: { flexDirection: 'row', gap: 10 },
+  sheetActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   detailsBtn: {
-    flex: 1, borderRadius: 16, paddingVertical: 13, alignItems: 'center',
+    width: '47.5%', borderRadius: 16, paddingVertical: 13, alignItems: 'center',
     backgroundColor: '#F0EEFF',
   },
-  detailsBtnText: { fontSize: 15, fontWeight: '800', color: '#5B4FCF' },
+  detailsBtnText: { fontSize: 14, fontWeight: '800', color: '#5B4FCF' },
   routeBtn: {
-    flex: 1, borderRadius: 16, paddingVertical: 13, alignItems: 'center',
+    width: '47.5%', borderRadius: 16, paddingVertical: 13, alignItems: 'center',
     backgroundColor: '#EAF7EF',
   },
-  routeBtnText: { fontSize: 15, fontWeight: '800', color: '#2E9E5D' },
+  routeBtnText: { fontSize: 14, fontWeight: '800', color: '#2E9E5D' },
   joinBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 14,
+    width: '47.5%', paddingVertical: 13, borderRadius: 16,
     borderWidth: 2, borderColor: '#5B4FCF', alignItems: 'center',
   },
   joinBtnActive: { backgroundColor: '#5B4FCF' },
-  joinBtnText: { fontSize: 15, fontWeight: '700', color: '#5B4FCF' },
+  joinBtnText: { fontSize: 14, fontWeight: '800', color: '#5B4FCF' },
   joinBtnTextActive: { color: '#FFF' },
   chatBtn: {
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderRadius: 14, backgroundColor: '#F0EEFF', alignItems: 'center',
+    width: '47.5%', paddingVertical: 13,
+    borderRadius: 16, backgroundColor: '#F0EEFF', alignItems: 'center',
   },
-  chatBtnText: { fontSize: 15, fontWeight: '700', color: '#5B4FCF' },
+  chatBtnText: { fontSize: 14, fontWeight: '800', color: '#5B4FCF' },
 });
