@@ -22,6 +22,7 @@ import EventParticipantsScreen from '../screens/EventParticipantsScreen';
 import FriendsScreen from '../screens/FriendsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AdminRolesScreen from '../screens/AdminRolesScreen';
+import EventDetailsScreen from '../screens/EventDetailsScreen';
 
 import { RootStackParamList, BottomTabParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -151,6 +152,7 @@ export default function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: 'Ивент', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="Chat" component={ChatScreen} options={{ headerBackTitle: 'Назад' }} />
             <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: 'Новый ивент', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="Review" component={ReviewScreen} options={{ title: 'Оценить участников', headerBackTitle: 'Назад' }} />

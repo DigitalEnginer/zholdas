@@ -162,6 +162,15 @@ export default function MapScreen() {
 
           <View style={styles.sheetActions}>
             <TouchableOpacity
+              style={styles.detailsBtn}
+              onPress={() => {
+                closeSheet();
+                navigation.navigate('EventDetails', { eventId: selectedEvent.id });
+              }}
+            >
+              <Text style={styles.detailsBtnText}>Подробнее</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.joinBtn, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnActive]}
               onPress={handleJoin}
               disabled={!user || (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active')}
@@ -268,6 +277,11 @@ const styles = StyleSheet.create({
   progressBar: { height: 6, backgroundColor: '#F0EEFF', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#5B4FCF', borderRadius: 3 },
   sheetActions: { flexDirection: 'row', gap: 10 },
+  detailsBtn: {
+    flex: 1, borderRadius: 16, paddingVertical: 13, alignItems: 'center',
+    backgroundColor: '#F0EEFF',
+  },
+  detailsBtnText: { fontSize: 15, fontWeight: '800', color: '#5B4FCF' },
   joinBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 14,
     borderWidth: 2, borderColor: '#5B4FCF', alignItems: 'center',

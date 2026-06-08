@@ -127,6 +127,7 @@ where id = 'user-uuid-here';
 - Friends screen
 - Personal blocks
 - Notifications
+- Event lifecycle notifications
 - Participants screen with hidden banned users for regular users
 - Creator/moderator/admin can remove participants
 
@@ -143,6 +144,10 @@ where id = 'user-uuid-here';
 - `active` events can be joined and chatted in.
 - `finished` events are closed for joining and can be reviewed.
 - `cancelled` events are closed for joining, chat, and reviews.
+- Cancelled events can store `cancel_reason`.
+- Events can store `starts_at`; `finish_past_events()` marks past active events as finished.
+- Message inserts are blocked by RLS unless the event is `active`.
+- Event details screen shows description, participants, status, management, chat and review actions.
 
 ## Security Notes
 

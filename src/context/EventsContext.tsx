@@ -10,7 +10,8 @@ interface EventsContextType {
   joinEvent: (eventId: string, userId: string) => Promise<void>;
   leaveEvent: (eventId: string, userId: string) => Promise<void>;
   createEvent: (event: Omit<Event, 'id' | 'participantsCount' | 'joinedUserIds'>) => Promise<Event>;
-  updateEventStatus: (eventId: string, status: NonNullable<Event['status']>) => Promise<void>;
+  updateEvent: (eventId: string, event: Partial<Omit<Event, 'id' | 'participantsCount' | 'joinedUserIds'>>) => Promise<void>;
+  updateEventStatus: (eventId: string, status: NonNullable<Event['status']>, cancelReason?: string) => Promise<void>;
   isJoined: (eventId: string, userId: string) => boolean;
 }
 
@@ -63,7 +64,34 @@ function transformEvent(e: any): Event {
     minAge: e.min_age ?? undefined,
     maxAge: e.max_age ?? undefined,
     status: e.status ?? 'active',
+    cancelReason: e.cancel_reason ?? undefined,
+    startsAt: e.starts_at ?? undefined,
   };
+}
+
+function toEventUpdate(data: Partial<Omit<Event, 'id' | 'participantsCount' | 'joinedUserIds'>>) {
+  const update: Record<string, unknown> = {};
+  if (data.title !== undefined) update.title = data.title;
+  if (data.category !== undefined) update.category = data.category;
+  if (data.datetime !== undefined) update.datetime = data.datetime;
+  if (data.maxParticipants !== undefined) update.max_participants = data.maxParticipants;
+  if (data.description !== undefined) update.description = data.description;
+  if (data.coordinate !== undefined) {
+    update.latitude = data.coordinate.latitude;
+    update.longitude = data.coordinate.longitude;
+  }
+  if (data.address !== undefined) update.address = data.address ?? null;
+  if (data.createdBy !== undefined) update.created_by = data.createdBy ?? null;
+  if (data.imageUri !== undefined) update.image_uri = data.imageUri ?? null;
+  if (data.isRecurring !== undefined) update.is_recurring = data.isRecurring;
+  if (data.recurringLabel !== undefined) update.recurring_label = data.recurringLabel ?? null;
+  if (data.genderFilter !== undefined) update.gender_filter = data.genderFilter;
+  if (data.minAge !== undefined) update.min_age = data.minAge ?? null;
+  if (data.maxAge !== undefined) update.max_age = data.maxAge ?? null;
+  if (data.status !== undefined) update.status = data.status;
+  if (data.cancelReason !== undefined) update.cancel_reason = data.cancelReason ?? null;
+  if (data.startsAt !== undefined) update.starts_at = data.startsAt ?? null;
+  return update;
 }
 
 export function EventsProvider({ children }: { children: React.ReactNode }) {
@@ -142,6 +170,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       min_age: data.minAge ?? null,
       max_age: data.maxAge ?? null,
       status: data.status ?? 'active',
+      starts_at: data.startsAt ?? null,
     }).select().single();
 
     if (error) throw new Error(error.message);
@@ -157,10 +186,17 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     return transformEvent({ ...newEvent, event_participants: data.createdBy ? [{ user_id: data.createdBy }] : [] });
   }
 
-  async function updateEventStatus(eventId: string, status: NonNullable<Event['status']>) {
+  async function updateEvent(eventId: string, event: Partial<Omit<Event, 'id' | 'participantsCount' | 'joinedUserIds'>>) {
+    const { error } = await supabase.from('events').update(toEventUpdate(event)).eq('id', eventId);
+    if (error) throw new Error(error.message);
+    await loadEvents();
+  }
+
+  async function updateEventStatus(eventId: string, status: NonNullable<Event['status']>, cancelReason?: string) {
     const { error } = await supabase.rpc('set_event_status', {
       p_event_id: eventId,
       p_status: status,
+      p_cancel_reason: cancelReason ?? null,
     });
     if (error) throw new Error(error.message);
     await loadEvents();
@@ -172,7 +208,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <EventsContext.Provider value={{ events, isLoading, joinEvent, leaveEvent, createEvent, updateEventStatus, isJoined }}>
+    <EventsContext.Provider value={{ events, isLoading, joinEvent, leaveEvent, createEvent, updateEvent, updateEventStatus, isJoined }}>
       {children}
     </EventsContext.Provider>
   );

@@ -201,13 +201,25 @@ export default function ChatScreen() {
     ]);
   }
 
-  async function changeEventStatus(status: EventStatus) {
+  async function changeEventStatus(status: EventStatus, cancelReason?: string) {
     try {
-      await updateEventStatus(eventId, status);
+      await updateEventStatus(eventId, status, cancelReason);
       haptics.medium();
     } catch (e: any) {
       Alert.alert('Ошибка', e.message ?? 'Не удалось изменить статус');
     }
+  }
+
+  function cancelEvent() {
+    if (Platform.OS === 'ios') {
+      Alert.prompt('Причина отмены', 'Участники увидят эту причину', [
+        { text: 'Назад', style: 'cancel' },
+        { text: 'Отменить ивент', style: 'destructive', onPress: (reason?: string) => changeEventStatus('cancelled', reason || 'Ивент отменен') },
+      ]);
+      return;
+    }
+
+    changeEventStatus('cancelled', 'Ивент отменен');
   }
 
   function handleCreatorMenu() {
@@ -219,7 +231,7 @@ export default function ChatScreen() {
       ...(eventStatus !== 'cancelled' ? [{
         text: '🚫 Отменить ивент',
         style: 'destructive' as const,
-        onPress: () => changeEventStatus('cancelled' as EventStatus),
+        onPress: cancelEvent,
       }] : []),
       ...(eventStatus !== 'active' ? [{
         text: '🔄 Вернуть в активные',
@@ -300,6 +312,12 @@ export default function ChatScreen() {
           </View>
         </View>
       )}
+      {event?.cancelReason ? (
+        <View style={styles.cancelNotice}>
+          <Text style={styles.cancelNoticeTitle}>Ивент отменен</Text>
+          <Text style={styles.cancelNoticeText}>{event.cancelReason}</Text>
+        </View>
+      ) : null}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -387,6 +405,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
   },
   leaveBtnText: { fontSize: 12, color: '#FF4D4D', fontWeight: '700' },
+  cancelNotice: { backgroundColor: '#FEE4E2', paddingHorizontal: 16, paddingVertical: 10 },
+  cancelNoticeTitle: { color: '#B42318', fontSize: 12, fontWeight: '900' },
+  cancelNoticeText: { color: '#B42318', fontSize: 12, lineHeight: 17, marginTop: 2 },
   list: { paddingVertical: 12, paddingBottom: 8 },
   emptyChat: { alignItems: 'center', paddingTop: 60 },
   emptyChatText: { fontSize: 14, color: '#AAA' },

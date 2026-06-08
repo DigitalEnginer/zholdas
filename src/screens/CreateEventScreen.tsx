@@ -5,7 +5,7 @@ import {
   Alert, Image, ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -18,6 +18,7 @@ import { categoryEmojis, categoryLabels } from '../data/mockEvents';
 import { supabase } from '../lib/supabase';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
 
 const CATEGORIES: EventCategory[] = ['mountains', 'theatre', 'restaurant', 'sport', 'other'];
 const ALMATY = { latitude: 43.238, longitude: 76.945 };
@@ -30,8 +31,11 @@ const GENDER_FILTERS: Array<{ key: GenderFilter; label: string; emoji: string }>
 
 export default function CreateEventScreen() {
   const navigation = useNavigation<Nav>();
-  const { createEvent } = useEvents();
+  const route = useRoute<CreateEventRoute>();
+  const { createEvent, updateEvent, events } = useEvents();
   const { user } = useAuth();
+  const eventId = route.params?.eventId;
+  const editingEvent = eventId ? events.find(e => e.id === eventId) : undefined;
   const mapRef = useRef<MapView>(null);
 
   const [title, setTitle] = useState('');
@@ -49,6 +53,26 @@ export default function CreateEventScreen() {
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
+
+  React.useEffect(() => {
+    navigation.setOptions({ title: eventId ? 'Редактировать ивент' : 'Новый ивент' });
+  }, [eventId, navigation]);
+
+  React.useEffect(() => {
+    if (!editingEvent) return;
+    setTitle(editingEvent.title);
+    setDescription(editingEvent.description);
+    setCategory(editingEvent.category);
+    setDatetime(editingEvent.datetime);
+    setMaxParticipants(String(editingEvent.maxParticipants));
+    setCoordinate(editingEvent.coordinate);
+    setAddress(editingEvent.address ?? '');
+    setAddressInput(editingEvent.address ?? '');
+    setImageUri(editingEvent.imageUri ?? null);
+    setGenderFilter(editingEvent.genderFilter ?? 'all');
+    setMinAge(editingEvent.minAge ? String(editingEvent.minAge) : '');
+    setMaxAge(editingEvent.maxAge ? String(editingEvent.maxAge) : '');
+  }, [editingEvent?.id]);
 
   async function handleGeocode() {
     const q = addressInput.trim();
@@ -123,7 +147,7 @@ export default function CreateEventScreen() {
 
     setLoading(true);
     try {
-      const event = await createEvent({
+      const payload = {
         title: title.trim(),
         description: description.trim() || 'Присоединяйся!',
         category,
@@ -136,7 +160,17 @@ export default function CreateEventScreen() {
         genderFilter,
         minAge: minA,
         maxAge: maxA,
-      });
+      };
+
+      if (eventId) {
+        await updateEvent(eventId, payload);
+        Alert.alert('Готово!', 'Ивент обновлен', [
+          { text: 'К деталям', onPress: () => navigation.replace('EventDetails', { eventId }) },
+        ]);
+        return;
+      }
+
+      const event = await createEvent(payload);
       Alert.alert('Готово!', 'Ивент создан', [
         { text: 'Открыть чат', onPress: () => navigation.replace('Chat', { eventId: event.id, eventTitle: event.title }) },
         { text: 'На карту', onPress: () => navigation.navigate('Main') },
@@ -361,7 +395,9 @@ export default function CreateEventScreen() {
             disabled={loading || uploading}
             activeOpacity={0.85}
           >
-            <Text style={styles.createBtnText}>{loading ? 'Создаём...' : '✨ Создать ивент'}</Text>
+            <Text style={styles.createBtnText}>
+              {loading ? (eventId ? 'Сохраняем...' : 'Создаём...') : eventId ? 'Сохранить изменения' : '✨ Создать ивент'}
+            </Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />

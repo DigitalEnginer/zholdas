@@ -26,6 +26,8 @@ export interface Event {
   minAge?: number;
   maxAge?: number;
   status?: EventStatus;
+  cancelReason?: string;
+  startsAt?: string;
 }
 
 export interface Message {
@@ -88,7 +90,8 @@ export type RootStackParamList = {
   Register: undefined;
   Main: undefined;
   Chat: { eventId: string; eventTitle: string };
-  CreateEvent: undefined;
+  CreateEvent: { eventId?: string } | undefined;
+  EventDetails: { eventId: string };
   EditProfile: undefined;
   Review: { eventId: string; eventTitle: string };
   UserProfile: { userId: string; userName: string; userAvatar: string };

@@ -59,7 +59,9 @@ begin
     gender_filter,
     min_age,
     max_age,
-    status
+    status,
+    starts_at,
+    cancel_reason
   )
   values
     (
@@ -80,7 +82,9 @@ begin
       'all',
       null,
       null,
-      'finished'
+      'finished',
+      now() - interval '1 day',
+      null
     ),
     (
       '22222222-2222-4222-8222-222222222222',
@@ -100,7 +104,9 @@ begin
       'all',
       null,
       null,
-      'active'
+      'active',
+      now() + interval '4 hours',
+      null
     ),
     (
       '33333333-3333-4333-8333-333333333333',
@@ -120,7 +126,9 @@ begin
       'all',
       null,
       null,
-      'active'
+      'active',
+      now() + interval '3 days',
+      null
     )
   on conflict (id) do update
   set
@@ -138,7 +146,9 @@ begin
     gender_filter = excluded.gender_filter,
     min_age = excluded.min_age,
     max_age = excluded.max_age,
-    status = excluded.status;
+    status = excluded.status,
+    starts_at = excluded.starts_at,
+    cancel_reason = excluded.cancel_reason;
 
   insert into public.event_participants (event_id, user_id)
   values

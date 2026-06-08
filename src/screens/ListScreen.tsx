@@ -57,9 +57,7 @@ export default function ListScreen() {
   }
 
   function handleOpenChat(eventId: string, eventTitle: string) {
-    if (user && isJoined(eventId, user.id)) {
-      navigation.navigate('Chat', { eventId, eventTitle });
-    }
+    navigation.navigate('EventDetails', { eventId });
   }
 
   return (
