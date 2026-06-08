@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Alert,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
@@ -18,6 +18,9 @@ const ALMATY_REGION = {
   latitude: 43.238, longitude: 76.945,
   latitudeDelta: 0.18, longitudeDelta: 0.18,
 };
+
+const MIN_DELTA = 0.01;
+const MAX_DELTA = 0.7;
 
 const MAP_FILTERS: Array<{ key: 'all' | EventCategory; label: string; emoji: string }> = [
   { key: 'all', label: 'Все', emoji: '🌟' },
@@ -37,6 +40,7 @@ export default function MapScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
+  const [region, setRegion] = useState<Region>(ALMATY_REGION);
   const slideAnim = useRef(new Animated.Value(320)).current;
 
   const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
@@ -76,6 +80,16 @@ export default function MapScreen() {
     });
   }
 
+  function zoom(multiplier: number) {
+    const nextRegion = {
+      ...region,
+      latitudeDelta: Math.max(MIN_DELTA, Math.min(MAX_DELTA, region.latitudeDelta * multiplier)),
+      longitudeDelta: Math.max(MIN_DELTA, Math.min(MAX_DELTA, region.longitudeDelta * multiplier)),
+    };
+    setRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 220);
+  }
+
   return (
     <View style={styles.container}>
       <MapView
@@ -83,6 +97,7 @@ export default function MapScreen() {
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={ALMATY_REGION}
+        onRegionChangeComplete={setRegion}
         showsUserLocation={false}
         showsCompass={false}
       >
@@ -129,6 +144,16 @@ export default function MapScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+      </View>
+
+      <View style={styles.zoomControls}>
+        <TouchableOpacity style={styles.zoomButton} onPress={() => zoom(0.55)} activeOpacity={0.85}>
+          <Text style={styles.zoomButtonText}>+</Text>
+        </TouchableOpacity>
+        <View style={styles.zoomDivider} />
+        <TouchableOpacity style={styles.zoomButton} onPress={() => zoom(1.8)} activeOpacity={0.85}>
+          <Text style={styles.zoomButtonText}>−</Text>
+        </TouchableOpacity>
       </View>
 
       {routeTarget && (
@@ -296,6 +321,33 @@ const styles = StyleSheet.create({
   filterEmoji: { fontSize: 13 },
   filterLabel: { fontSize: 12, color: '#555', fontWeight: '600' },
   filterLabelActive: { color: '#FFF' },
+  zoomControls: {
+    position: 'absolute',
+    right: 16,
+    top: 206,
+    width: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  zoomButton: {
+    width: 44,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomButtonText: {
+    color: '#1A1A2E',
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 28,
+  },
+  zoomDivider: { height: 1, backgroundColor: '#E8E5FF' },
   routeBanner: {
     position: 'absolute',
     top: 202,
