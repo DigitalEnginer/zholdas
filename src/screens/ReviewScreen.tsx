@@ -70,7 +70,7 @@ export default function ReviewScreen() {
     }
 
     for (const toUserId of rated) {
-      await supabase.from('reviews').insert({
+      const { error } = await supabase.from('reviews').insert({
         from_user_id: user?.id,
         to_user_id: toUserId,
         event_id: eventId,
@@ -78,18 +78,13 @@ export default function ReviewScreen() {
         comment: comments[toUserId] ?? '',
       });
 
-      // Update reviewee's average rating
-      const { data: theirReviews } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('to_user_id', toUserId);
-
-      if (theirReviews && theirReviews.length > 0) {
-        const avg = theirReviews.reduce((s, r) => s + r.rating, 0) / theirReviews.length;
-        await supabase
-          .from('profiles')
-          .update({ rating: parseFloat(avg.toFixed(1)), reviews_count: theirReviews.length })
-          .eq('id', toUserId);
+      if (error) {
+        if (error.message.includes('duplicate key')) {
+          Alert.alert('', 'Ты уже оставил отзыв этому участнику за этот ивент');
+        } else {
+          Alert.alert('', error.message);
+        }
+        return;
       }
     }
 
