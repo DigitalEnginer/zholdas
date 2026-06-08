@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Alert,
 } from 'react-native';
 import MapView, { PROVIDER_DEFAULT } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, categoryLabels } from '../data/mockEvents';
+import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
 import EventMarker from '../components/EventMarker';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
@@ -51,8 +51,12 @@ export default function MapScreen() {
 
   function handleJoin() {
     if (!selectedEvent || !user) return;
+    if (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active') {
+      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      return;
+    }
     if (isJoined(selectedEvent.id, user.id)) leaveEvent(selectedEvent.id, user.id);
-    else joinEvent(selectedEvent.id, user.id);
+    else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert('Ошибка', e.message));
   }
 
   return (
@@ -121,6 +125,19 @@ export default function MapScreen() {
           </View>
 
           <Text style={styles.sheetTitle}>{selectedEvent.title}</Text>
+          {(selectedEvent.status ?? 'active') !== 'active' && (
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: `${eventStatusColors[selectedEvent.status ?? 'active']}18` },
+            ]}>
+              <Text style={[
+                styles.statusText,
+                { color: eventStatusColors[selectedEvent.status ?? 'active'] },
+              ]}>
+                {eventStatusLabels[selectedEvent.status ?? 'active']}
+              </Text>
+            </View>
+          )}
           <View style={styles.sheetMeta}>
             <Text style={styles.sheetTime}>🕐 {selectedEvent.datetime}</Text>
             {userLocation && (
@@ -147,9 +164,14 @@ export default function MapScreen() {
             <TouchableOpacity
               style={[styles.joinBtn, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnActive]}
               onPress={handleJoin}
+              disabled={!user || (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active')}
             >
               <Text style={[styles.joinBtnText, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnTextActive]}>
-                {user && isJoined(selectedEvent.id, user.id) ? '✓ Вы в группе' : 'Присоединиться'}
+                {user && isJoined(selectedEvent.id, user.id)
+                  ? '✓ Вы в группе'
+                  : (selectedEvent.status ?? 'active') !== 'active'
+                    ? eventStatusLabels[selectedEvent.status ?? 'active']
+                    : 'Присоединиться'}
               </Text>
             </TouchableOpacity>
             {user && isJoined(selectedEvent.id, user.id) && (
@@ -235,6 +257,8 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { fontSize: 14, color: '#666' },
   sheetTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A2E', marginBottom: 6 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 8 },
+  statusText: { fontSize: 12, fontWeight: '800' },
   sheetMeta: { flexDirection: 'row', gap: 12, marginBottom: 10 },
   sheetTime: { fontSize: 14, color: '#5B4FCF', fontWeight: '500' },
   sheetDist: { fontSize: 14, color: '#5B4FCF', fontWeight: '500' },

@@ -6,13 +6,14 @@ import {
 import { Share } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList, Message } from '../types';
+import { EventStatus, RootStackParamList, Message } from '../types';
 import ChatMessage from '../components/ChatMessage';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
 import { useHaptics } from '../hooks/useHaptics';
 import { supabase } from '../lib/supabase';
+import { eventStatusLabels } from '../data/mockEvents';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 
@@ -78,12 +79,14 @@ export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { eventId, eventTitle } = route.params;
   const { user } = useAuth();
-  const { events, leaveEvent, isJoined } = useEvents();
+  const { events, leaveEvent, isJoined, updateEventStatus } = useEvents();
   const { theme } = useTheme();
   const haptics = useHaptics();
   const event = events.find(e => e.id === eventId);
-  const isCreator = !!user && event?.createdBy === user.id;
+  const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const joined = !!user && isJoined(eventId, user.id);
+  const eventStatus = event?.status ?? 'active';
+  const isActive = eventStatus === 'active';
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set());
@@ -100,7 +103,7 @@ export default function ChatScreen() {
           <TouchableOpacity onPress={handleShare}>
             <Text style={{ fontSize: 20 }}>📤</Text>
           </TouchableOpacity>
-          {isCreator && (
+          {canManageEvent && (
             <TouchableOpacity onPress={handleCreatorMenu}>
               <Text style={{ fontSize: 20 }}>⋯</Text>
             </TouchableOpacity>
@@ -108,7 +111,7 @@ export default function ChatScreen() {
         </View>
       ),
     });
-  }, [eventTitle, isCreator]);
+  }, [eventTitle, canManageEvent, eventStatus]);
 
   useEffect(() => {
     loadMessages();
@@ -198,8 +201,30 @@ export default function ChatScreen() {
     ]);
   }
 
+  async function changeEventStatus(status: EventStatus) {
+    try {
+      await updateEventStatus(eventId, status);
+      haptics.medium();
+    } catch (e: any) {
+      Alert.alert('Ошибка', e.message ?? 'Не удалось изменить статус');
+    }
+  }
+
   function handleCreatorMenu() {
     Alert.alert(eventTitle, 'Управление ивентом', [
+      ...(eventStatus !== 'finished' ? [{
+        text: '✅ Завершить ивент',
+        onPress: () => changeEventStatus('finished' as EventStatus),
+      }] : []),
+      ...(eventStatus !== 'cancelled' ? [{
+        text: '🚫 Отменить ивент',
+        style: 'destructive' as const,
+        onPress: () => changeEventStatus('cancelled' as EventStatus),
+      }] : []),
+      ...(eventStatus !== 'active' ? [{
+        text: '🔄 Вернуть в активные',
+        onPress: () => changeEventStatus('active' as EventStatus),
+      }] : []),
       {
         text: '🗑 Удалить ивент', style: 'destructive', onPress: () => {
           Alert.alert('Удалить ивент?', 'Это действие нельзя отменить', [
@@ -219,6 +244,10 @@ export default function ChatScreen() {
   }
 
   async function handleAI() {
+    if (!isActive) {
+      Alert.alert('', 'Чат закрыт для завершенного или отмененного ивента');
+      return;
+    }
     const question = inputText.trim() || `Расскажи об ивенте "${eventTitle}"`;
     setInputText('');
     if (inputText.trim()) sendMessage(inputText.trim());
@@ -247,6 +276,7 @@ export default function ChatScreen() {
             👥 {event.participantsCount} участников
             {!!event.hiddenParticipantsCount ? ` · скрыто ${event.hiddenParticipantsCount}` : ''}
             {' · '}{event.datetime}
+            {!isActive ? ` · ${eventStatusLabels[eventStatus]}` : ''}
           </Text>
           <View style={styles.bannerActions}>
             <TouchableOpacity
@@ -257,11 +287,12 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('Review', { eventId, eventTitle })}
-              style={styles.reviewBtn}
+              style={[styles.reviewBtn, eventStatus !== 'finished' && styles.reviewBtnDisabled]}
+              disabled={eventStatus !== 'finished'}
             >
-              <Text style={styles.reviewBtnText}>⭐ Оценить</Text>
+              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? '⭐ Оценить' : '⭐ После ивента'}</Text>
             </TouchableOpacity>
-            {joined && !isCreator && (
+            {joined && event?.createdBy !== user?.id && (
               <TouchableOpacity onPress={handleLeave} style={styles.leaveBtn}>
                 <Text style={styles.leaveBtnText}>↩ Выйти</Text>
               </TouchableOpacity>
@@ -313,14 +344,15 @@ export default function ChatScreen() {
             maxLength={500}
             returnKeyType="send"
             onSubmitEditing={handleSend}
+            editable={isActive}
           />
-          <TouchableOpacity style={styles.aiBtn} onPress={handleAI} activeOpacity={0.75}>
+          <TouchableOpacity style={[styles.aiBtn, !isActive && styles.actionDisabled]} onPress={handleAI} disabled={!isActive} activeOpacity={0.75}>
             <Text style={styles.aiBtnText}>@ai</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!inputText.trim() || !isActive) && styles.sendBtnDisabled]}
             onPress={handleSend}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || !isActive}
             activeOpacity={0.8}
           >
             <Text style={styles.sendBtnText}>↑</Text>
@@ -348,6 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#5B4FCF', borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 4,
   },
+  reviewBtnDisabled: { backgroundColor: '#B8B2E8' },
   reviewBtnText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
   leaveBtn: {
     backgroundColor: '#FFE8E8', borderRadius: 12,
@@ -374,6 +407,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1.5, borderColor: '#F5A623',
   },
+  actionDisabled: { opacity: 0.5 },
   aiBtnText: { fontSize: 13, fontWeight: '700', color: '#E07B2C' },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,

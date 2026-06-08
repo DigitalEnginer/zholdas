@@ -58,7 +58,8 @@ begin
     recurring_label,
     gender_filter,
     min_age,
-    max_age
+    max_age,
+    status
   )
   values
     (
@@ -78,7 +79,8 @@ begin
       null,
       'all',
       null,
-      null
+      null,
+      'finished'
     ),
     (
       '22222222-2222-4222-8222-222222222222',
@@ -97,7 +99,8 @@ begin
       null,
       'all',
       null,
-      null
+      null,
+      'active'
     ),
     (
       '33333333-3333-4333-8333-333333333333',
@@ -116,7 +119,8 @@ begin
       'Каждое воскресенье',
       'all',
       null,
-      null
+      null,
+      'active'
     )
   on conflict (id) do update
   set
@@ -133,7 +137,8 @@ begin
     recurring_label = excluded.recurring_label,
     gender_filter = excluded.gender_filter,
     min_age = excluded.min_age,
-    max_age = excluded.max_age;
+    max_age = excluded.max_age,
+    status = excluded.status;
 
   insert into public.event_participants (event_id, user_id)
   values

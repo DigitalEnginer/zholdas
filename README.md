@@ -83,8 +83,9 @@ Run these files in Supabase SQL Editor in this order:
 1. `supabase_moderation_hardening.sql`
 2. `supabase_social_features.sql`
 3. `supabase_final_product_layer.sql`
-4. `supabase_reviews_hardening.sql`
-5. `supabase_seed_demo.sql` optional demo data
+4. `supabase_event_status.sql`
+5. `supabase_reviews_hardening.sql`
+6. `supabase_seed_demo.sql` optional demo data
 
 Important: `supabase_final_product_layer.sql` contains stricter message insert rules. Run it after `SUPABASE_SERVICE_ROLE_KEY` is configured in `backend/.env`, because AI messages are saved by the backend service role.
 
@@ -132,9 +133,16 @@ where id = 'user-uuid-here';
 ## Reviews And Rating
 
 - Users can review only other participants of the same event.
+- Reviews are allowed only after an event is marked as `finished`.
 - One user can leave only one review per participant per event.
 - Rating is constrained to 1-5.
 - `profiles.rating` and `profiles.reviews_count` are recalculated by Supabase triggers.
+
+## Event Statuses
+
+- `active` events can be joined and chatted in.
+- `finished` events are closed for joining and can be reviewed.
+- `cancelled` events are closed for joining, chat, and reviews.
 
 ## Security Notes
 

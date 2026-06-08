@@ -7,6 +7,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useEvents } from '../context/EventsContext';
 
 type ReviewRoute = RouteProp<RootStackParamList, 'Review'>;
 
@@ -32,7 +33,9 @@ export default function ReviewScreen() {
   const route = useRoute<ReviewRoute>();
   const navigation = useNavigation();
   const { user, updateUser } = useAuth();
+  const { events } = useEvents();
   const { eventId, eventTitle } = route.params;
+  const event = events.find(e => e.id === eventId);
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -63,6 +66,11 @@ export default function ReviewScreen() {
   }
 
   async function handleSubmit() {
+    if ((event?.status ?? 'active') !== 'finished') {
+      Alert.alert('', 'Отзывы можно оставить только после завершения ивента');
+      return;
+    }
+
     const rated = Object.keys(ratings).filter(id => ratings[id] > 0);
     if (rated.length === 0) {
       Alert.alert('', 'Оцени хотя бы одного участника');

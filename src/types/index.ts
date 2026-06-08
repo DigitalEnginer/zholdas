@@ -4,6 +4,8 @@ export type GenderFilter = 'all' | 'male' | 'female';
 
 export type AppRole = 'user' | 'moderator' | 'admin';
 
+export type EventStatus = 'active' | 'finished' | 'cancelled';
+
 export interface Event {
   id: string;
   title: string;
@@ -23,6 +25,7 @@ export interface Event {
   genderFilter?: GenderFilter;
   minAge?: number;
   maxAge?: number;
+  status?: EventStatus;
 }
 
 export interface Message {

@@ -13,6 +13,7 @@ export const mockEvents: Event[] = [
       latitude: 43.1526,
       longitude: 76.9868,
     },
+    status: 'active',
   },
   {
     id: '2',
@@ -26,6 +27,7 @@ export const mockEvents: Event[] = [
       latitude: 43.2565,
       longitude: 76.9286,
     },
+    status: 'active',
   },
   {
     id: '3',
@@ -39,6 +41,7 @@ export const mockEvents: Event[] = [
       latitude: 43.2389,
       longitude: 76.8897,
     },
+    status: 'active',
   },
   {
     id: '4',
@@ -52,6 +55,7 @@ export const mockEvents: Event[] = [
       latitude: 43.2483,
       longitude: 76.9425,
     },
+    status: 'active',
   },
 ];
 
@@ -69,4 +73,16 @@ export const categoryEmojis: Record<string, string> = {
   restaurant: '🍽️',
   sport: '⚽',
   other: '✨',
+};
+
+export const eventStatusLabels: Record<string, string> = {
+  active: 'Активен',
+  finished: 'Завершен',
+  cancelled: 'Отменен',
+};
+
+export const eventStatusColors: Record<string, string> = {
+  active: '#2E9E5D',
+  finished: '#5B4FCF',
+  cancelled: '#D92D20',
 };

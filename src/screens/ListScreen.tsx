@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  SafeAreaView, TextInput,
+  SafeAreaView, TextInput, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -46,8 +46,14 @@ export default function ListScreen() {
 
   function handleJoin(eventId: string) {
     if (!user) return;
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+    if (!isJoined(eventId, user.id) && (event.status ?? 'active') !== 'active') {
+      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      return;
+    }
     if (isJoined(eventId, user.id)) leaveEvent(eventId, user.id);
-    else joinEvent(eventId, user.id);
+    else joinEvent(eventId, user.id).catch(e => Alert.alert('Ошибка', e.message));
   }
 
   function handleOpenChat(eventId: string, eventTitle: string) {

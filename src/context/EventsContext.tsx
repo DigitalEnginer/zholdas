@@ -10,6 +10,7 @@ interface EventsContextType {
   joinEvent: (eventId: string, userId: string) => Promise<void>;
   leaveEvent: (eventId: string, userId: string) => Promise<void>;
   createEvent: (event: Omit<Event, 'id' | 'participantsCount' | 'joinedUserIds'>) => Promise<Event>;
+  updateEventStatus: (eventId: string, status: NonNullable<Event['status']>) => Promise<void>;
   isJoined: (eventId: string, userId: string) => boolean;
 }
 
@@ -61,6 +62,7 @@ function transformEvent(e: any): Event {
     genderFilter: e.gender_filter ?? 'all',
     minAge: e.min_age ?? undefined,
     maxAge: e.max_age ?? undefined,
+    status: e.status ?? 'active',
   };
 }
 
@@ -112,6 +114,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       await loadEvents();
     } catch (err: any) {
       if (err?.message?.includes('full')) throw new Error('Ивент уже заполнен');
+      throw new Error(err?.message ?? 'Не удалось присоединиться к ивенту');
     }
   }
 
@@ -138,6 +141,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       gender_filter: data.genderFilter ?? 'all',
       min_age: data.minAge ?? null,
       max_age: data.maxAge ?? null,
+      status: data.status ?? 'active',
     }).select().single();
 
     if (error) throw new Error(error.message);
@@ -153,13 +157,22 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
     return transformEvent({ ...newEvent, event_participants: data.createdBy ? [{ user_id: data.createdBy }] : [] });
   }
 
+  async function updateEventStatus(eventId: string, status: NonNullable<Event['status']>) {
+    const { error } = await supabase.rpc('set_event_status', {
+      p_event_id: eventId,
+      p_status: status,
+    });
+    if (error) throw new Error(error.message);
+    await loadEvents();
+  }
+
   function isJoined(eventId: string, userId: string): boolean {
     const event = events.find(e => e.id === eventId);
     return event?.joinedUserIds?.includes(userId) ?? false;
   }
 
   return (
-    <EventsContext.Provider value={{ events, isLoading, joinEvent, leaveEvent, createEvent, isJoined }}>
+    <EventsContext.Provider value={{ events, isLoading, joinEvent, leaveEvent, createEvent, updateEventStatus, isJoined }}>
       {children}
     </EventsContext.Provider>
   );

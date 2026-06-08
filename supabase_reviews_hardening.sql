@@ -66,6 +66,12 @@ as $$
     and public.is_not_banned()
     and exists (
       select 1
+      from public.events e
+      where e.id = p_event_id
+        and e.status = 'finished'
+    )
+    and exists (
+      select 1
       from public.event_participants ep
       where ep.event_id = p_event_id
         and ep.user_id = p_from_user_id
@@ -153,4 +159,3 @@ begin
     perform public.recalculate_profile_rating(v_profile_id);
   end loop;
 end $$;
-

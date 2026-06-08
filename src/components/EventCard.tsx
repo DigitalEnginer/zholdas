@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Event } from '../types';
-import { categoryEmojis, categoryLabels } from '../data/mockEvents';
+import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
 
 interface Props {
   event: Event;
@@ -14,6 +14,9 @@ interface Props {
 export default function EventCard({ event, joined, distance, onPress, onJoin }: Props) {
   const spotsLeft = event.maxParticipants - event.participantsCount;
   const isFull = spotsLeft <= 0;
+  const status = event.status ?? 'active';
+  const isActive = status === 'active';
+  const statusColor = eventStatusColors[status];
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
@@ -27,6 +30,13 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
           <Text style={styles.categoryText}>{categoryLabels[event.category]}</Text>
         </View>
         <View style={styles.metaRight}>
+          {!isActive && (
+            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {eventStatusLabels[status]}
+              </Text>
+            </View>
+          )}
           {distance ? (
             <Text style={styles.distance}>📍 {distance}</Text>
           ) : null}
@@ -54,13 +64,13 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
           )}
         </View>
         <TouchableOpacity
-          style={[styles.joinBtn, joined && styles.joinBtnActive, isFull && !joined && styles.joinBtnFull]}
+          style={[styles.joinBtn, joined && styles.joinBtnActive, (!isActive || isFull) && !joined && styles.joinBtnFull]}
           onPress={onJoin}
-          disabled={isFull && !joined}
+          disabled={(!isActive || isFull) && !joined}
           activeOpacity={0.8}
         >
           <Text style={[styles.joinBtnText, joined && styles.joinBtnTextActive]}>
-            {joined ? '✓ В группе' : isFull ? 'Заполнено' : 'Войти'}
+            {joined ? '✓ В группе' : !isActive ? eventStatusLabels[status] : isFull ? 'Заполнено' : 'Войти'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -92,6 +102,8 @@ const styles = StyleSheet.create({
   metaRight: { alignItems: 'flex-end', gap: 2 },
   distance: { fontSize: 11, color: '#5B4FCF', fontWeight: '600' },
   datetime: { fontSize: 12, color: '#999' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  statusText: { fontSize: 11, fontWeight: '800' },
   title: { fontSize: 17, fontWeight: '700', color: '#1A1A2E', marginBottom: 6, paddingHorizontal: 16 },
   description: { fontSize: 13, color: '#666', lineHeight: 18, marginBottom: 10, paddingHorizontal: 16 },
   progressBar: { height: 4, backgroundColor: '#F0EEFF', borderRadius: 2, overflow: 'hidden', marginBottom: 12, marginHorizontal: 16 },
