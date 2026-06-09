@@ -301,7 +301,13 @@ export default function ChatScreen() {
             reporter_id: user.id,
             reported_user_id: message.userId,
             reason: 'Жалоба на сообщение',
-            details: `Ивент: ${eventTitle}\nСообщение: ${message.text.slice(0, 500)}`,
+            details: [
+              'type:message',
+              `message_id:${message.id}`,
+              `event_id:${eventId}`,
+              `event_title:${eventTitle}`,
+              `message_text:${message.text.slice(0, 500)}`,
+            ].join('\n'),
           });
 
           if (error) {

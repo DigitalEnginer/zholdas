@@ -95,6 +95,8 @@ using (
 );
 
 drop policy if exists reports_insert on public.reports;
+drop policy if exists reports_select_moderators on public.reports;
+drop policy if exists reports_update_moderators on public.reports;
 
 create policy reports_insert
 on public.reports
@@ -105,6 +107,22 @@ with check (
   and public.can_create_report()
   and reporter_id = (select auth.uid())
   and reporter_id <> reported_user_id
+);
+
+create policy reports_select_moderators
+on public.reports
+for select
+to authenticated
+using (public.is_moderator_or_admin());
+
+create policy reports_update_moderators
+on public.reports
+for update
+to authenticated
+using (public.is_moderator_or_admin())
+with check (
+  public.is_moderator_or_admin()
+  and status in ('pending', 'reviewed', 'dismissed')
 );
 
 create or replace function public.log_ban_action()
