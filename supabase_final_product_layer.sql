@@ -44,11 +44,37 @@ to authenticated
 with check (
   public.is_not_banned()
   and user_id = (select auth.uid())::text
+  and length(trim(coalesce(text, ''))) <= 500
+  and (
+    length(trim(coalesce(text, ''))) > 0
+    or image_url is not null
+  )
+  and (
+    select count(*) < 20
+    from public.messages recent
+    where recent.user_id = (select auth.uid())::text
+      and recent.created_at > now() - interval '5 minutes'
+  )
   and exists (
     select 1
-    from public.event_participants ep
-    where ep.event_id = messages.event_id
-      and ep.user_id = (select auth.uid())
+    from public.events e
+    where e.id = messages.event_id
+      and e.status = 'active'
+  )
+  and (
+    public.is_moderator_or_admin()
+    or exists (
+      select 1
+      from public.events e
+      where e.id = messages.event_id
+        and e.created_by = (select auth.uid())
+    )
+    or exists (
+      select 1
+      from public.event_participants ep
+      where ep.event_id = messages.event_id
+        and ep.user_id = (select auth.uid())
+    )
   )
 );
 

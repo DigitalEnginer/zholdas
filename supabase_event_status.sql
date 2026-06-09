@@ -377,11 +377,20 @@ with check (
     where e.id = messages.event_id
       and e.status = 'active'
   )
-  and exists (
-    select 1
-    from public.event_participants ep
-    where ep.event_id = messages.event_id
-      and ep.user_id = (select auth.uid())
+  and (
+    public.is_moderator_or_admin()
+    or exists (
+      select 1
+      from public.events e
+      where e.id = messages.event_id
+        and e.created_by = (select auth.uid())
+    )
+    or exists (
+      select 1
+      from public.event_participants ep
+      where ep.event_id = messages.event_id
+        and ep.user_id = (select auth.uid())
+    )
   )
 );
 

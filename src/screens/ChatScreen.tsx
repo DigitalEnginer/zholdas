@@ -174,7 +174,11 @@ export default function ChatScreen() {
   }
 
   async function sendMessage(text: string, isAI = false, imageUri?: string) {
-    await supabase.from('messages').insert({
+    if (!isAI && !user) {
+      throw new Error('Нужно войти в аккаунт');
+    }
+
+    const { error } = await supabase.from('messages').insert({
       event_id: eventId,
       user_id: isAI ? 'ai' : (user?.id ?? 'anon'),
       user_name: isAI ? 'Жолдас AI' : (user?.name ?? 'Вы'),
@@ -182,14 +186,26 @@ export default function ChatScreen() {
       image_url: imageUri ?? null,
       is_ai: isAI,
     });
+
+    if (error) throw new Error(error.message);
   }
 
-  function handleSend() {
+  async function handleSend() {
     const text = inputText.trim();
     if (!text) return;
+    if (!joined && event?.createdBy !== user?.id && user?.role !== 'moderator' && user?.role !== 'admin') {
+      Alert.alert('', 'Сначала вступи в ивент, чтобы писать в чат');
+      return;
+    }
+
     haptics.light();
     setInputText('');
-    sendMessage(text);
+    try {
+      await sendMessage(text);
+    } catch (e: any) {
+      setInputText(text);
+      Alert.alert('Не удалось отправить сообщение', e.message ?? 'Проверь RLS policies для messages');
+    }
   }
 
   async function handlePickPhoto() {
