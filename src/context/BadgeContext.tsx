@@ -15,20 +15,34 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const userId = user.id;
+    const userRole = user.role;
+
+    async function loadUnreadCount() {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('recipient_id', userId)
+        .eq('is_read', false);
+
+      setActivityBadge(count ?? 0);
+    }
+
+    loadUnreadCount();
 
     const channel = supabase
-      .channel(`badge-tracker-${user.id}`)
+      .channel(`badge-tracker-${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_participants' }, () => {
         setActivityBadge(prev => prev + 1);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, () => {
         setActivityBadge(prev => prev + 1);
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` }, () => {
         setActivityBadge(prev => prev + 1);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reports' }, () => {
-        if (user.role === 'moderator' || user.role === 'admin') {
+        if (userRole === 'moderator' || userRole === 'admin') {
           setActivityBadge(prev => prev + 1);
         }
       })

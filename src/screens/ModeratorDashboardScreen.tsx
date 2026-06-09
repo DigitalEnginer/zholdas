@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView,
+  ActivityIndicator, Alert, Image, RefreshControl, SafeAreaView, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -303,6 +303,7 @@ export default function ModeratorDashboardScreen() {
                 const target = profiles[report.reported_user_id];
                 const isPending = report.status === 'pending';
                 const messageText = getDetailValue(report.details, 'message_text');
+                const imageUrl = getDetailValue(report.details, 'image_url');
                 const eventTitle = getDetailValue(report.details, 'event_title');
 
                 return (
@@ -330,6 +331,9 @@ export default function ModeratorDashboardScreen() {
                       </View>
                     ) : report.details ? (
                       <Text style={[styles.details, { color: theme.subtext }]}>{report.details}</Text>
+                    ) : null}
+                    {imageUrl ? (
+                      <Image source={{ uri: imageUrl }} style={styles.reportImage} />
                     ) : null}
 
                     <View style={styles.metaRow}>
@@ -474,6 +478,7 @@ const styles = StyleSheet.create({
   detailBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 10 },
   detailLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   detailText: { fontSize: 14, lineHeight: 19 },
+  reportImage: { width: '100%', height: 180, borderRadius: 12, marginTop: 10, backgroundColor: '#EEE' },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 10 },
   statusPill: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
   statusText: { fontSize: 11, fontWeight: '900' },

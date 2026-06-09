@@ -52,16 +52,26 @@ as $$
     )
 $$;
 
-create or replace function public.can_create_report()
+create or replace function public.can_create_report(p_reported_user_id uuid)
 returns boolean
 language sql
 security definer
 set search_path = public
 as $$
-  select count(*) < 5
-  from public.reports
-  where reporter_id = (select auth.uid())
-    and created_at > now() - interval '1 hour'
+  select
+    (
+      select count(*) < 5
+      from public.reports
+      where reporter_id = (select auth.uid())
+        and created_at > now() - interval '1 hour'
+    )
+    and not exists (
+      select 1
+      from public.reports
+      where reporter_id = (select auth.uid())
+        and reported_user_id = p_reported_user_id
+        and created_at > now() - interval '24 hours'
+    )
 $$;
 
 drop policy if exists moderation_actions_select_moderators on public.moderation_actions;
@@ -104,7 +114,7 @@ for insert
 to authenticated
 with check (
   public.is_not_banned()
-  and public.can_create_report()
+  and public.can_create_report(reported_user_id)
   and reporter_id = (select auth.uid())
   and reporter_id <> reported_user_id
 );

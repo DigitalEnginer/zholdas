@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Message } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useHaptics } from '../hooks/useHaptics';
@@ -65,7 +65,12 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
             {!isOwn && (
               <Text style={[styles.userName, { color: theme.accent }]}>{message.userName}</Text>
             )}
-            <Text style={[styles.text, { color: isOwn ? '#FFF' : theme.text }]}>{message.text}</Text>
+            {message.imageUri ? (
+              <Image source={{ uri: message.imageUri }} style={styles.messageImage} />
+            ) : null}
+            {message.text ? (
+              <Text style={[styles.text, { color: isOwn ? '#FFF' : theme.text }]}>{message.text}</Text>
+            ) : null}
             <Text style={[styles.time, { color: isOwn ? 'rgba(255,255,255,0.6)' : theme.subtext }]}>
               {formatTime(message.timestamp)}
             </Text>
@@ -139,6 +144,7 @@ const styles = StyleSheet.create({
   },
   userName: { fontSize: 11, fontWeight: '700', marginBottom: 3 },
   text: { fontSize: 15, lineHeight: 20 },
+  messageImage: { width: 210, height: 150, borderRadius: 14, marginBottom: 8 },
   time: { fontSize: 10, marginTop: 4, textAlign: 'right' },
   actionPanel: {
     borderRadius: 18, padding: 6,

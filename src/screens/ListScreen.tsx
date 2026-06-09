@@ -6,11 +6,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, categoryLabels } from '../data/mockEvents';
+import { categoryEmojis, categoryLabels, eventStatusLabels } from '../data/mockEvents';
 import EventCard from '../components/EventCard';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
-import { useLocation, getDistance } from '../hooks/useLocation';
+import { useLocation, getDistance, getDistanceKm } from '../hooks/useLocation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -31,18 +31,36 @@ export default function ListScreen() {
   const [activeFilter, setActiveFilter] = useState<'all' | EventCategory>('all');
   const [search, setSearch] = useState('');
   const [showJoinedOnly, setShowJoinedOnly] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(false);
+  const [nearOnly, setNearOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'finished' | 'cancelled'>('active');
+  const [sortMode, setSortMode] = useState<'new' | 'near' | 'popular'>('new');
 
   const filtered = useMemo(() => {
-    return events.filter(e => {
+    const next = events.filter(e => {
       if (activeFilter !== 'all' && e.category !== activeFilter) return false;
+      if (statusFilter !== 'all' && (e.status ?? 'active') !== statusFilter) return false;
+      if (availableOnly && e.participantsCount >= e.maxParticipants) return false;
       if (showJoinedOnly && user && !isJoined(e.id, user.id)) return false;
+      if (nearOnly && userLocation) {
+        if (getDistanceKm(userLocation, e.coordinate) > 5) return false;
+      }
       if (search.trim()) {
         const q = search.toLowerCase();
-        if (!e.title.toLowerCase().includes(q) && !e.description.toLowerCase().includes(q)) return false;
+        const haystack = `${e.title} ${e.description} ${e.address ?? ''}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [events, activeFilter, search, showJoinedOnly, user]);
+
+    return [...next].sort((a, b) => {
+      if (sortMode === 'popular') return b.participantsCount - a.participantsCount;
+      if (sortMode === 'near' && userLocation) {
+        return getDistanceKm(userLocation, a.coordinate) - getDistanceKm(userLocation, b.coordinate);
+      }
+      return 0;
+    });
+  }, [events, activeFilter, search, showJoinedOnly, availableOnly, nearOnly, statusFilter, sortMode, user, userLocation]);
 
   function handleJoin(eventId: string) {
     if (!user) return;
@@ -107,7 +125,30 @@ export default function ListScreen() {
         ))}
       </View>
 
-      <Text style={styles.count}>{filtered.length} активност{filtered.length === 1 ? 'ь' : 'и'}</Text>
+      <View style={styles.quickFilters}>
+        {[
+          { key: 'active', label: 'Активные', onPress: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active'), active: statusFilter === 'active' },
+          { key: 'available', label: 'Есть места', onPress: () => setAvailableOnly(v => !v), active: availableOnly },
+          { key: 'near', label: 'Рядом', onPress: () => setNearOnly(v => !v), active: nearOnly },
+        ].map(item => (
+          <TouchableOpacity key={item.key} style={[styles.quickChip, item.active && styles.quickChipActive]} onPress={item.onPress}>
+            <Text style={[styles.quickText, item.active && styles.quickTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          style={styles.quickChip}
+          onPress={() => setSortMode(sortMode === 'new' ? 'near' : sortMode === 'near' ? 'popular' : 'new')}
+        >
+          <Text style={styles.quickText}>
+            {sortMode === 'near' ? 'Сначала рядом' : sortMode === 'popular' ? 'Популярные' : 'Новые'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.count}>
+        {filtered.length} активност{filtered.length === 1 ? 'ь' : 'и'}
+        {statusFilter !== 'all' ? ` · ${eventStatusLabels[statusFilter]}` : ''}
+      </Text>
 
       <FlatList
         data={filtered}
@@ -164,6 +205,14 @@ const styles = StyleSheet.create({
   filterEmoji: { fontSize: 13 },
   filterLabel: { fontSize: 13, color: '#555', fontWeight: '500' },
   filterLabelActive: { color: '#FFF', fontWeight: '700' },
+  quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
+  quickChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E8E5FF',
+  },
+  quickChipActive: { backgroundColor: '#F0EEFF', borderColor: '#5B4FCF' },
+  quickText: { fontSize: 12, color: '#666', fontWeight: '700' },
+  quickTextActive: { color: '#5B4FCF' },
   count: { fontSize: 12, color: '#AAA', paddingHorizontal: 16, marginBottom: 4 },
   list: { paddingVertical: 4, paddingBottom: 24 },
   empty: { alignItems: 'center', paddingTop: 60 },

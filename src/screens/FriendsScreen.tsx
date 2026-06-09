@@ -13,6 +13,7 @@ import AvatarImage from '../components/AvatarImage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RequestStatus = 'pending' | 'accepted' | 'declined';
+type FriendsTab = 'friends' | 'incoming' | 'outgoing';
 
 interface FriendRequest {
   id: string;
@@ -35,6 +36,7 @@ export default function FriendsScreen() {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileSummary>>({});
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<FriendsTab>('friends');
 
   useEffect(() => {
     loadFriends();
@@ -161,24 +163,40 @@ export default function FriendsScreen() {
   const accepted = requests.filter(r => r.status === 'accepted');
   const incoming = requests.filter(r => r.status === 'pending' && r.to_user_id === user?.id);
   const outgoing = requests.filter(r => r.status === 'pending' && r.from_user_id === user?.id);
+  const tabs: Array<{ key: FriendsTab; label: string; data: FriendRequest[] }> = [
+    { key: 'friends', label: `Друзья ${accepted.length}`, data: accepted },
+    { key: 'incoming', label: `Входящие ${incoming.length}`, data: incoming },
+    { key: 'outgoing', label: `Исходящие ${outgoing.length}`, data: outgoing },
+  ];
+  const currentTab = tabs.find(tab => tab.key === activeTab) ?? tabs[0];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {[
-          { title: 'Входящие заявки', data: incoming },
-          { title: 'Друзья', data: accepted },
-          { title: 'Исходящие заявки', data: outgoing },
-        ].map(section => (
-          <View key={section.title} style={[styles.section, { backgroundColor: theme.card }]}>
-            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{section.title}</Text>
-            {section.data.length === 0 ? (
-              <Text style={[styles.empty, { color: theme.subtext }]}>Пусто</Text>
-            ) : (
-              section.data.map(renderRequest)
-            )}
-          </View>
-        ))}
+        <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+          {tabs.map(tab => {
+            const selected = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{currentTab.label}</Text>
+          {currentTab.data.length === 0 ? (
+            <Text style={[styles.empty, { color: theme.subtext }]}>Пусто</Text>
+          ) : (
+            currentTab.data.map(renderRequest)
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -187,6 +205,9 @@ export default function FriendsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 36 },
+  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  tabText: { fontSize: 12, fontWeight: '800' },
   section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   sectionTitle: {
     fontSize: 12,

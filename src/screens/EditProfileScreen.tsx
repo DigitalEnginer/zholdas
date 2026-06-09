@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth, AVATARS } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AvatarImage from '../components/AvatarImage';
-import { uploadImageToStorage } from '../lib/storage';
+import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
@@ -47,6 +47,7 @@ export default function EditProfileScreen() {
         path: `${user.id}/avatar-${Date.now()}`,
         uri: result.assets[0].uri,
       });
+      await deletePublicStorageImage('profile-photos', avatarValue);
       setAvatarValue(publicUrl);
     } catch (e: any) {
       Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');

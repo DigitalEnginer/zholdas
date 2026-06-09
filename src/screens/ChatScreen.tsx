@@ -4,6 +4,7 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Alert,
 } from 'react-native';
 import { Share } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventStatus, RootStackParamList, Message } from '../types';
@@ -14,6 +15,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useHaptics } from '../hooks/useHaptics';
 import { supabase } from '../lib/supabase';
 import { eventStatusLabels } from '../data/mockEvents';
+import { uploadImageToStorage } from '../lib/storage';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 
@@ -26,6 +28,7 @@ function transformDbMessage(raw: any): Message {
     userId: raw.user_id,
     userName: raw.user_name,
     text: raw.text,
+    imageUri: raw.image_url ?? undefined,
     timestamp: new Date(raw.created_at),
     isAI: raw.is_ai,
     reactions: raw.reactions ?? {},
@@ -94,6 +97,7 @@ export default function ChatScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<Set<string>>(new Set());
   const [inputText, setInputText] = useState('');
   const [isAITyping, setIsAITyping] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -169,12 +173,13 @@ export default function ChatScreen() {
     }
   }
 
-  async function sendMessage(text: string, isAI = false) {
+  async function sendMessage(text: string, isAI = false, imageUri?: string) {
     await supabase.from('messages').insert({
       event_id: eventId,
       user_id: isAI ? 'ai' : (user?.id ?? 'anon'),
       user_name: isAI ? 'Жолдас AI' : (user?.name ?? 'Вы'),
       text,
+      image_url: imageUri ?? null,
       is_ai: isAI,
     });
   }
@@ -185,6 +190,40 @@ export default function ChatScreen() {
     haptics.light();
     setInputText('');
     sendMessage(text);
+  }
+
+  async function handlePickPhoto() {
+    if (!user || !isActive) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('', 'Нужен доступ к фото');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.75,
+    });
+    if (result.canceled) return;
+
+    setUploadingPhoto(true);
+    try {
+      const publicUrl = await uploadImageToStorage({
+        bucket: 'chat-photos',
+        path: `${user.id}/${eventId}/message-${Date.now()}`,
+        uri: result.assets[0].uri,
+      });
+      await sendMessage(inputText.trim(), false, publicUrl);
+      setInputText('');
+      haptics.medium();
+    } catch (e: any) {
+      Alert.alert('Не удалось отправить фото', e.message ?? 'Проверь Supabase Storage');
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   async function handleShare() {
@@ -307,6 +346,7 @@ export default function ChatScreen() {
               `event_id:${eventId}`,
               `event_title:${eventTitle}`,
               `message_text:${message.text.slice(0, 500)}`,
+              `image_url:${message.imageUri ?? ''}`,
             ].join('\n'),
           });
 
@@ -436,6 +476,14 @@ export default function ChatScreen() {
             onSubmitEditing={handleSend}
             editable={isActive}
           />
+          <TouchableOpacity
+            style={[styles.photoBtn, (!isActive || uploadingPhoto) && styles.actionDisabled]}
+            onPress={handlePickPhoto}
+            disabled={!isActive || uploadingPhoto}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.photoBtnText}>{uploadingPhoto ? '…' : '📷'}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.aiBtn, !isActive && styles.actionDisabled]} onPress={handleAI} disabled={!isActive} activeOpacity={0.75}>
             <Text style={styles.aiBtnText}>@ai</Text>
           </TouchableOpacity>
@@ -502,6 +550,12 @@ const styles = StyleSheet.create({
   },
   actionDisabled: { opacity: 0.5 },
   aiBtnText: { fontSize: 13, fontWeight: '700', color: '#E07B2C' },
+  photoBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: '#F0EEFF', justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#DCD6FF',
+  },
+  photoBtnText: { fontSize: 18 },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: '#5B4FCF', justifyContent: 'center', alignItems: 'center',

@@ -4,7 +4,8 @@
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
   ('profile-photos', 'profile-photos', true, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
-  ('event-photos', 'event-photos', true, 8388608, array['image/jpeg', 'image/png', 'image/webp'])
+  ('event-photos', 'event-photos', true, 8388608, array['image/jpeg', 'image/png', 'image/webp']),
+  ('chat-photos', 'chat-photos', true, 8388608, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do update
 set
   public = excluded.public,
@@ -92,5 +93,47 @@ for delete
 to authenticated
 using (
   bucket_id = 'event-photos'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+drop policy if exists chat_photos_public_read on storage.objects;
+drop policy if exists chat_photos_insert_own on storage.objects;
+drop policy if exists chat_photos_update_own on storage.objects;
+drop policy if exists chat_photos_delete_own on storage.objects;
+
+create policy chat_photos_public_read
+on storage.objects
+for select
+to public
+using (bucket_id = 'chat-photos');
+
+create policy chat_photos_insert_own
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'chat-photos'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy chat_photos_update_own
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'chat-photos'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+)
+with check (
+  bucket_id = 'chat-photos'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy chat_photos_delete_own
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'chat-photos'
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );

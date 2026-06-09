@@ -12,7 +12,7 @@ export const ALMATY_LOCATION: UserLocation = {
   longitude: 76.945,
 };
 
-function getDistanceKm(from: UserLocation, to: UserLocation): number {
+export function getDistanceKm(from: UserLocation, to: UserLocation): number {
   const R = 6371;
   const dLat = (to.latitude - from.latitude) * Math.PI / 180;
   const dLon = (to.longitude - from.longitude) * Math.PI / 180;

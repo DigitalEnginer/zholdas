@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { RootStackParamList } from '../types';
 import { supabase } from '../lib/supabase';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+type NotificationTab = 'all' | 'unread';
 
 interface NotificationItem {
   id: string;
@@ -16,11 +22,28 @@ interface NotificationItem {
 export default function NotificationsScreen() {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const navigation = useNavigation<Nav>();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<NotificationTab>('all');
 
   useEffect(() => {
     loadNotifications();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`notifications-screen-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` },
+        loadNotifications
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
   async function loadNotifications() {
@@ -41,6 +64,24 @@ export default function NotificationsScreen() {
     setItems(prev => prev.map(item => item.id === id ? { ...item, is_read: true } : item));
   }
 
+  async function handlePress(item: NotificationItem) {
+    await markRead(item.id);
+
+    if (item.type === 'friend_request' || item.type === 'friend_accept') {
+      navigation.navigate('Friends');
+    } else if (item.type === 'report_created') {
+      navigation.navigate('ModeratorDashboard');
+    } else if (
+      item.type === 'event_joined'
+      || item.type === 'event_left'
+      || item.type === 'event_finished'
+      || item.type === 'event_cancelled'
+      || item.type === 'chat_message'
+    ) {
+      navigation.navigate('Main');
+    }
+  }
+
   async function markAllRead() {
     if (!user) return;
     await supabase.from('notifications').update({ is_read: true }).eq('recipient_id', user.id);
@@ -53,19 +94,36 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={theme.accent} style={{ flex: 1 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+            {[
+              { key: 'all', label: `Все ${items.length}` },
+              { key: 'unread', label: `Новые ${items.filter(item => !item.is_read).length}` },
+            ].map(tab => {
+              const selected = activeTab === tab.key;
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                  onPress={() => setActiveTab(tab.key as NotificationTab)}
+                >
+                  <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           {items.length > 0 && (
             <TouchableOpacity style={[styles.readAll, { borderColor: theme.border }]} onPress={markAllRead}>
               <Text style={[styles.readAllText, { color: theme.subtext }]}>Отметить все прочитанными</Text>
             </TouchableOpacity>
           )}
-          {items.length === 0 ? (
+          {(activeTab === 'unread' ? items.filter(item => !item.is_read) : items).length === 0 ? (
             <Text style={[styles.empty, { color: theme.subtext }]}>Уведомлений пока нет</Text>
           ) : (
-            items.map(item => (
+            (activeTab === 'unread' ? items.filter(item => !item.is_read) : items).map(item => (
               <TouchableOpacity
                 key={item.id}
                 style={[styles.card, { backgroundColor: theme.card, borderColor: item.is_read ? theme.border : theme.accent }]}
-                onPress={() => markRead(item.id)}
+                onPress={() => handlePress(item)}
                 activeOpacity={0.8}
               >
                 <View style={[styles.dot, { backgroundColor: item.is_read ? theme.border : theme.accent }]} />
@@ -85,6 +143,9 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 36 },
+  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  tabText: { fontSize: 13, fontWeight: '800' },
   readAll: { borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center', marginBottom: 12 },
   readAllText: { fontSize: 13, fontWeight: '800' },
   empty: { marginTop: 40, textAlign: 'center', fontSize: 15 },

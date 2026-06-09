@@ -13,6 +13,9 @@ add column if not exists starts_at timestamptz;
 alter table public.events
 add column if not exists updated_at timestamptz not null default now();
 
+alter table public.messages
+add column if not exists image_url text;
+
 do $$
 begin
   if not exists (
@@ -211,7 +214,8 @@ check (
     'event_joined',
     'event_left',
     'event_finished',
-    'event_cancelled'
+    'event_cancelled',
+    'chat_message'
   )
 );
 
@@ -310,6 +314,43 @@ after delete on public.event_participants
 for each row
 execute function public.notify_event_participant_delete();
 
+create or replace function public.notify_chat_message_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_event_title text;
+begin
+  if new.user_id = 'ai' then
+    return new;
+  end if;
+
+  select title
+  into v_event_title
+  from public.events
+  where id = new.event_id;
+
+  insert into public.notifications (recipient_id, actor_id, type, title, body)
+  select ep.user_id, new.user_id::uuid, 'chat_message', 'Новое сообщение', coalesce(v_event_title, 'Чат ивента')
+  from public.event_participants ep
+  join public.profiles p on p.id = ep.user_id
+  where ep.event_id = new.event_id
+    and ep.user_id::text <> new.user_id
+    and p.is_banned = false;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists messages_after_insert_notify on public.messages;
+
+create trigger messages_after_insert_notify
+after insert on public.messages
+for each row
+execute function public.notify_chat_message_insert();
+
 drop policy if exists messages_insert on public.messages;
 
 create policy messages_insert
@@ -319,6 +360,17 @@ to authenticated
 with check (
   public.is_not_banned()
   and user_id = (select auth.uid())::text
+  and length(trim(coalesce(text, ''))) <= 500
+  and (
+    length(trim(coalesce(text, ''))) > 0
+    or image_url is not null
+  )
+  and (
+    select count(*) < 20
+    from public.messages recent
+    where recent.user_id = (select auth.uid())::text
+      and recent.created_at > now() - interval '5 minutes'
+  )
   and exists (
     select 1
     from public.events e

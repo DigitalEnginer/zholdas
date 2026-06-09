@@ -13,7 +13,7 @@ import { RootStackParamList, EventCategory, GenderFilter } from '../types';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { categoryEmojis, categoryLabels } from '../data/mockEvents';
-import { uploadImageToStorage } from '../lib/storage';
+import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
@@ -125,12 +125,18 @@ export default function CreateEventScreen() {
         path: `${user.id}/event-${eventId ?? 'new'}-${Date.now()}`,
         uri: localUri,
       });
+      await deletePublicStorageImage('event-photos', imageUri);
       setImageUri(publicUrl);
     } catch (e: any) {
       Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');
     } finally {
       setUploading(false);
     }
+  }
+
+  async function removeEventPhoto() {
+    await deletePublicStorageImage('event-photos', imageUri);
+    setImageUri(null);
   }
 
   async function handleCreate() {
@@ -381,7 +387,7 @@ export default function CreateEventScreen() {
               )}
             </TouchableOpacity>
             {imageUri && (
-              <TouchableOpacity onPress={() => setImageUri(null)} style={styles.removePhoto}>
+              <TouchableOpacity onPress={removeEventPhoto} style={styles.removePhoto}>
                 <Text style={styles.removePhotoText}>✕ Удалить фото</Text>
               </TouchableOpacity>
             )}

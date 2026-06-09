@@ -36,6 +36,7 @@ export interface Message {
   userId: string;
   userName: string;
   text: string;
+  imageUri?: string;
   timestamp: Date;
   isAI?: boolean;
   reactions?: Record<string, string[]>;
