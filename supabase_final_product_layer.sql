@@ -35,6 +35,49 @@ using (
 
 -- Use this stricter messages_insert only after backend/.env has SUPABASE_SERVICE_ROLE_KEY.
 -- It removes frontend permission to write user_id = 'ai'.
+create or replace function public.can_send_chat_message(p_event_id uuid, p_user_id text, p_text text, p_image_url text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    public.is_not_banned()
+    and p_user_id = (select auth.uid())::text
+    and length(trim(coalesce(p_text, ''))) <= 500
+    and (
+      length(trim(coalesce(p_text, ''))) > 0
+      or p_image_url is not null
+    )
+    and (
+      select count(*) < 20
+      from public.messages recent
+      where recent.user_id = (select auth.uid())::text
+        and recent.created_at > now() - interval '5 minutes'
+    )
+    and exists (
+      select 1
+      from public.events e
+      where e.id = p_event_id
+        and e.status = 'active'
+    )
+    and (
+      public.is_moderator_or_admin()
+      or exists (
+        select 1
+        from public.events e
+        where e.id = p_event_id
+          and e.created_by = (select auth.uid())
+      )
+      or exists (
+        select 1
+        from public.event_participants ep
+        where ep.event_id = p_event_id
+          and ep.user_id = (select auth.uid())
+      )
+    )
+$$;
+
 drop policy if exists messages_insert on public.messages;
 
 create policy messages_insert
@@ -42,40 +85,7 @@ on public.messages
 for insert
 to authenticated
 with check (
-  public.is_not_banned()
-  and user_id = (select auth.uid())::text
-  and length(trim(coalesce(text, ''))) <= 500
-  and (
-    length(trim(coalesce(text, ''))) > 0
-    or image_url is not null
-  )
-  and (
-    select count(*) < 20
-    from public.messages recent
-    where recent.user_id = (select auth.uid())::text
-      and recent.created_at > now() - interval '5 minutes'
-  )
-  and exists (
-    select 1
-    from public.events e
-    where e.id = messages.event_id
-      and e.status = 'active'
-  )
-  and (
-    public.is_moderator_or_admin()
-    or exists (
-      select 1
-      from public.events e
-      where e.id = messages.event_id
-        and e.created_by = (select auth.uid())
-    )
-    or exists (
-      select 1
-      from public.event_participants ep
-      where ep.event_id = messages.event_id
-        and ep.user_id = (select auth.uid())
-    )
-  )
+  public.can_send_chat_message(event_id, user_id, text, image_url)
 );
 
 create or replace function public.touch_friend_request_updated_at()
