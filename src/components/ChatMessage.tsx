@@ -8,6 +8,8 @@ interface Props {
   message: Message;
   isOwn: boolean;
   onAvatarPress?: () => void;
+  onReport?: () => void;
+  onDelete?: () => void;
 }
 
 const REACTION_EMOJIS = ['❤️', '😂', '👍', '🔥', '👏'];
@@ -16,13 +18,14 @@ function formatTime(date: Date): string {
   return new Date(date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatMessage({ message, isOwn, onAvatarPress }: Props) {
+export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, onDelete }: Props) {
   const { theme } = useTheme();
   const haptics = useHaptics();
   const [reactions, setReactions] = useState<Record<string, number>>(
     Object.fromEntries(Object.entries(message.reactions ?? {}).map(([k, v]) => [k, v.length]))
   );
   const [showPicker, setShowPicker] = useState(false);
+  const hasActions = !!onReport || !!onDelete;
 
   function addReaction(emoji: string) {
     haptics.light();
@@ -70,12 +73,34 @@ export default function ChatMessage({ message, isOwn, onAvatarPress }: Props) {
         </TouchableOpacity>
 
         {showPicker && (
-          <View style={[styles.reactionPicker, { backgroundColor: theme.card }, isOwn && styles.reactionPickerOwn]}>
-            {REACTION_EMOJIS.map(e => (
-              <TouchableOpacity key={e} onPress={() => addReaction(e)} style={styles.reactionOption}>
-                <Text style={styles.reactionOptionText}>{e}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.actionPanel, { backgroundColor: theme.card }, isOwn && styles.actionPanelOwn]}>
+            <View style={styles.reactionPicker}>
+              {REACTION_EMOJIS.map(e => (
+                <TouchableOpacity key={e} onPress={() => addReaction(e)} style={styles.reactionOption}>
+                  <Text style={styles.reactionOptionText}>{e}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {hasActions && (
+              <View style={[styles.messageActions, { borderTopColor: theme.border }]}>
+                {onReport && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.reportButton]}
+                    onPress={() => { setShowPicker(false); onReport(); }}
+                  >
+                    <Text style={styles.reportButtonText}>Пожаловаться</Text>
+                  </TouchableOpacity>
+                )}
+                {onDelete && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={() => { setShowPicker(false); onDelete(); }}
+                  >
+                    <Text style={styles.deleteButtonText}>Удалить</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -115,15 +140,22 @@ const styles = StyleSheet.create({
   userName: { fontSize: 11, fontWeight: '700', marginBottom: 3 },
   text: { fontSize: 15, lineHeight: 20 },
   time: { fontSize: 10, marginTop: 4, textAlign: 'right' },
-  reactionPicker: {
-    flexDirection: 'row', borderRadius: 24, padding: 6, gap: 4,
+  actionPanel: {
+    borderRadius: 18, padding: 6,
     marginTop: 4, alignSelf: 'flex-start',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
   },
-  reactionPickerOwn: { alignSelf: 'flex-end' },
+  actionPanelOwn: { alignSelf: 'flex-end' },
+  reactionPicker: { flexDirection: 'row', gap: 4 },
   reactionOption: { padding: 4 },
   reactionOptionText: { fontSize: 22 },
+  messageActions: { flexDirection: 'row', gap: 6, borderTopWidth: 1, marginTop: 4, paddingTop: 6 },
+  actionButton: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
+  reportButton: { backgroundColor: '#FFF3DC' },
+  reportButtonText: { color: '#E07B2C', fontSize: 12, fontWeight: '800' },
+  deleteButton: { backgroundColor: '#FEE4E2' },
+  deleteButtonText: { color: '#D92D20', fontSize: 12, fontWeight: '800' },
   reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
   reactionsRowOwn: { justifyContent: 'flex-end' },
   reactionBadge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },

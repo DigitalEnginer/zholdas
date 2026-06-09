@@ -84,6 +84,7 @@ export default function ChatScreen() {
   const haptics = useHaptics();
   const event = events.find(e => e.id === eventId);
   const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
+  const canModerateChat = canManageEvent;
   const joined = !!user && isJoined(eventId, user.id);
   const eventStatus = event?.status ?? 'active';
   const isActive = eventStatus === 'active';
@@ -125,6 +126,13 @@ export default function ChatScreen() {
           if (bannedUserIds.has(payload.new.user_id) || blockedUserIds.has(payload.new.user_id)) return;
           setMessages(prev => [...prev, transformDbMessage(payload.new)]);
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages', filter: `event_id=eq.${eventId}` },
+        (payload: any) => {
+          setMessages(prev => prev.filter(message => message.id !== payload.old.id));
         }
       )
       .subscribe();
@@ -280,6 +288,60 @@ export default function ChatScreen() {
     navigation.navigate('UserProfile', { userId, userName, userAvatar: '👤' });
   }
 
+  function reportMessage(message: Message) {
+    if (!user || message.userId === 'ai' || message.userId === user.id) return;
+
+    Alert.alert('Пожаловаться на сообщение?', 'Модераторы увидят текст сообщения и автора.', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Отправить',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('reports').insert({
+            reporter_id: user.id,
+            reported_user_id: message.userId,
+            reason: 'Жалоба на сообщение',
+            details: `Ивент: ${eventTitle}\nСообщение: ${message.text.slice(0, 500)}`,
+          });
+
+          if (error) {
+            Alert.alert('Ошибка', error.message);
+            return;
+          }
+
+          haptics.medium();
+          Alert.alert('Готово', 'Жалоба отправлена модераторам.');
+        },
+      },
+    ]);
+  }
+
+  function deleteMessage(message: Message) {
+    if (!canModerateChat) return;
+
+    Alert.alert('Удалить сообщение?', 'Оно пропадет из чата у всех участников.', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', message.id);
+
+          if (error) {
+            Alert.alert('Ошибка', error.message);
+            return;
+          }
+
+          haptics.medium();
+          setMessages(prev => prev.filter(item => item.id !== message.id));
+        },
+      },
+    ]);
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {event && (
@@ -334,6 +396,10 @@ export default function ChatScreen() {
               onAvatarPress={item.userId !== (user?.id ?? 'anon')
                 ? () => handleAvatarPress(item.userId, item.userName)
                 : undefined}
+              onReport={user && item.userId !== user.id && item.userId !== 'ai'
+                ? () => reportMessage(item)
+                : undefined}
+              onDelete={canModerateChat ? () => deleteMessage(item) : undefined}
             />
           )}
           contentContainerStyle={styles.list}

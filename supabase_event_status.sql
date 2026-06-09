@@ -333,6 +333,22 @@ with check (
   )
 );
 
+drop policy if exists messages_delete_moderator_creator on public.messages;
+
+create policy messages_delete_moderator_creator
+on public.messages
+for delete
+to authenticated
+using (
+  public.is_moderator_or_admin()
+  or exists (
+    select 1
+    from public.events e
+    where e.id = messages.event_id
+      and e.created_by = (select auth.uid())
+  )
+);
+
 create or replace function public.leave_event(p_event_id uuid, p_user_id uuid)
 returns void
 language plpgsql
