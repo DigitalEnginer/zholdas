@@ -9,6 +9,7 @@ import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 type ParticipantsRoute = RouteProp<RootStackParamList, 'EventParticipants'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -116,7 +117,7 @@ export default function EventParticipantsScreen() {
                 onPress={() => openProfile(participant)}
                 activeOpacity={0.75}
               >
-                <Text style={styles.avatar}>{participant.avatar}</Text>
+                <AvatarImage value={participant.avatar} size={44} backgroundColor={theme.accentLight} textSize={24} />
                 <View style={styles.info}>
                   <View style={styles.titleRow}>
                     <Text style={[styles.name, { color: theme.text }]}>{participant.name}</Text>
@@ -158,12 +159,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
   },
-  avatar: { fontSize: 30, marginRight: 12 },
   info: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   name: { fontSize: 16, fontWeight: '800' },

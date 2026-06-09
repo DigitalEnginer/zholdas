@@ -9,6 +9,7 @@ import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
@@ -308,7 +309,7 @@ export default function ModeratorDashboardScreen() {
                   <View key={report.id} style={[styles.reportCard, { borderTopColor: theme.border }]}>
                     <View style={styles.reportHeader}>
                       <TouchableOpacity style={styles.person} onPress={() => openProfile(target)} activeOpacity={0.75}>
-                        <Text style={styles.avatar}>{target?.avatar ?? '👤'}</Text>
+                        <AvatarImage value={target?.avatar ?? '👤'} size={42} backgroundColor={theme.accentLight} textSize={24} />
                         <View style={styles.personBody}>
                           <Text style={[styles.rowTitle, { color: theme.text }]}>{target?.name ?? 'Пользователь'}</Text>
                           <Text style={[styles.rowMeta, { color: theme.subtext }]}>На кого жалоба</Text>
@@ -382,7 +383,7 @@ export default function ModeratorDashboardScreen() {
                 return (
                   <View key={ban.user_id} style={[styles.cardRow, { borderTopColor: theme.border }]}>
                     <TouchableOpacity style={styles.person} onPress={() => openProfile(banned)} activeOpacity={0.75}>
-                      <Text style={styles.avatar}>{banned?.avatar ?? '👤'}</Text>
+                      <AvatarImage value={banned?.avatar ?? '👤'} size={42} backgroundColor={theme.accentLight} textSize={24} />
                       <View style={styles.personBody}>
                         <Text style={[styles.rowTitle, { color: theme.text }]}>{banned?.name ?? 'Пользователь'}</Text>
                         <Text style={[styles.reason, { color: theme.subtext }]}>{ban.reason ?? 'Без причины'}</Text>
@@ -417,7 +418,7 @@ export default function ModeratorDashboardScreen() {
 
                 return (
                   <View key={action.id} style={[styles.cardRow, { borderTopColor: theme.border }]}>
-                    <Text style={styles.avatar}>{target?.avatar ?? '👤'}</Text>
+                    <AvatarImage value={target?.avatar ?? '👤'} size={42} backgroundColor={theme.accentLight} textSize={24} />
                     <View style={styles.rowBody}>
                       <Text style={[styles.rowTitle, { color: theme.text }]}>
                         {labels[action.action]}: {target?.name ?? 'Пользователь'}
@@ -465,7 +466,6 @@ const styles = StyleSheet.create({
   cardRow: { flexDirection: 'row', gap: 12, padding: 16, borderTopWidth: 1, alignItems: 'center' },
   person: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   personBody: { flex: 1 },
-  avatar: { fontSize: 28 },
   rowBody: { flex: 1 },
   rowTitle: { fontSize: 16, fontWeight: '800' },
   rowMeta: { fontSize: 12, marginTop: 2 },

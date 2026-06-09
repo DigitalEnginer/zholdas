@@ -9,6 +9,7 @@ import { RootStackParamList } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 type ProfileRoute = RouteProp<RootStackParamList, 'UserProfile'>;
 
@@ -331,7 +332,13 @@ export default function UserProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={[styles.avatar, { backgroundColor: theme.accentLight, borderColor: theme.accent }]}>
-            <Text style={styles.avatarText}>{displayAvatar}</Text>
+            <AvatarImage
+              value={displayAvatar}
+              size={90}
+              backgroundColor={theme.accentLight}
+              borderColor={theme.accent}
+              textSize={44}
+            />
           </View>
           <Text style={[styles.name, { color: theme.text }]}>{displayName}</Text>
           {profile?.bio ? (
@@ -465,7 +472,7 @@ export default function UserProfileScreen() {
           ) : (
             reviews.map((review, i) => (
               <View key={review.id} style={[styles.reviewRow, { borderTopColor: theme.border }, i === 0 && { borderTopWidth: 0 }]}>
-                <Text style={styles.reviewAvatar}>{review.fromAvatar}</Text>
+                <AvatarImage value={review.fromAvatar} size={38} backgroundColor={theme.accentLight} textSize={22} />
                 <View style={{ flex: 1 }}>
                   <View style={styles.reviewHeader}>
                     <Text style={[styles.reviewFrom, { color: theme.text }]}>{review.fromName}</Text>
@@ -494,7 +501,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 14, borderWidth: 3,
   },
-  avatarText: { fontSize: 44 },
   name: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
   bio: { fontSize: 14, marginBottom: 12, textAlign: 'center', paddingHorizontal: 32 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 16 },
@@ -561,7 +567,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
     paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1,
   },
-  reviewAvatar: { fontSize: 28 },
   reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   reviewFrom: { fontSize: 14, fontWeight: '700' },
   reviewStars: { fontSize: 12, color: '#F5A623' },

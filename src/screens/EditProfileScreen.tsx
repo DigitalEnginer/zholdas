@@ -3,9 +3,12 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   SafeAreaView, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth, AVATARS } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import AvatarImage from '../components/AvatarImage';
+import { uploadImageToStorage } from '../lib/storage';
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
@@ -16,7 +19,41 @@ export default function EditProfileScreen() {
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [avatarIndex, setAvatarIndex] = useState(currentAvatarIndex >= 0 ? currentAvatarIndex : 0);
+  const [avatarValue, setAvatarValue] = useState(user?.avatar ?? AVATARS[avatarIndex]);
   const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  async function pickAvatarPhoto() {
+    if (!user) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('', 'Нужен доступ к фото');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.75,
+    });
+    if (result.canceled) return;
+
+    setUploadingAvatar(true);
+    try {
+      const publicUrl = await uploadImageToStorage({
+        bucket: 'profile-photos',
+        path: `${user.id}/avatar-${Date.now()}`,
+        uri: result.assets[0].uri,
+      });
+      setAvatarValue(publicUrl);
+    } catch (e: any) {
+      Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) { Alert.alert('', 'Введи имя'); return; }
@@ -25,7 +62,7 @@ export default function EditProfileScreen() {
       await updateUser({
         name: name.trim(),
         bio: bio.trim(),
-        avatar: AVATARS[avatarIndex],
+        avatar: avatarValue,
       });
       navigation.goBack();
     } catch {
@@ -39,8 +76,25 @@ export default function EditProfileScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.avatarSection}>
-          <Text style={styles.avatarPreview}>{AVATARS[avatarIndex]}</Text>
-          <Text style={[styles.hint, { color: theme.subtext }]}>Выбери аватар</Text>
+          <AvatarImage
+            value={avatarValue}
+            size={96}
+            backgroundColor={theme.accentLight}
+            borderColor={theme.accent}
+            textSize={48}
+          />
+          <TouchableOpacity
+            style={[styles.photoAvatarBtn, { backgroundColor: theme.accent }]}
+            onPress={pickAvatarPhoto}
+            disabled={uploadingAvatar}
+            activeOpacity={0.8}
+          >
+            {uploadingAvatar
+              ? <ActivityIndicator color="#FFF" size="small" />
+              : <Text style={styles.photoAvatarText}>Выбрать фото</Text>
+            }
+          </TouchableOpacity>
+          <Text style={[styles.hint, { color: theme.subtext }]}>Или выбери emoji-аватар</Text>
           <View style={styles.avatarGrid}>
             {AVATARS.map((a, i) => (
               <TouchableOpacity
@@ -50,7 +104,10 @@ export default function EditProfileScreen() {
                   { backgroundColor: theme.card, borderColor: 'transparent' },
                   avatarIndex === i && { borderColor: theme.accent, backgroundColor: theme.accentLight },
                 ]}
-                onPress={() => setAvatarIndex(i)}
+                onPress={() => {
+                  setAvatarIndex(i);
+                  setAvatarValue(a);
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.avatarOptionText}>{a}</Text>
@@ -86,7 +143,7 @@ export default function EditProfileScreen() {
         <TouchableOpacity
           style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || uploadingAvatar}
           activeOpacity={0.85}
         >
           {loading
@@ -103,7 +160,16 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   avatarSection: { alignItems: 'center', paddingVertical: 28 },
-  avatarPreview: { fontSize: 76, marginBottom: 12 },
+  photoAvatarBtn: {
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    marginTop: 12,
+    marginBottom: 10,
+    minWidth: 124,
+    alignItems: 'center',
+  },
+  photoAvatarText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
   hint: { fontSize: 13, marginBottom: 16 },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingHorizontal: 16 },
   avatarOption: {

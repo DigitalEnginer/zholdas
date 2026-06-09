@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RequestStatus = 'pending' | 'accepted' | 'declined';
@@ -113,7 +114,7 @@ export default function FriendsScreen() {
     return (
       <View key={request.id} style={[styles.row, { borderTopColor: theme.border }]}>
         <TouchableOpacity style={styles.person} onPress={() => openProfile(profile)} activeOpacity={0.75}>
-          <Text style={styles.avatar}>{profile.avatar}</Text>
+          <AvatarImage value={profile.avatar} size={40} backgroundColor={theme.accentLight} textSize={22} />
           <View style={styles.personText}>
             <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
             <Text style={[styles.meta, { color: theme.subtext }]}>
@@ -198,8 +199,7 @@ const styles = StyleSheet.create({
   },
   empty: { paddingHorizontal: 16, paddingBottom: 16, fontSize: 14 },
   row: { padding: 16, borderTopWidth: 1 },
-  person: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { fontSize: 28, marginRight: 12 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   personText: { flex: 1 },
   name: { fontSize: 16, fontWeight: '800' },
   meta: { fontSize: 12, marginTop: 3 },

@@ -8,14 +8,12 @@ import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
-import { decode } from 'base64-arraybuffer';
 import { RootStackParamList, EventCategory, GenderFilter } from '../types';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { categoryEmojis, categoryLabels } from '../data/mockEvents';
-import { supabase } from '../lib/supabase';
+import { uploadImageToStorage } from '../lib/storage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
@@ -103,6 +101,11 @@ export default function CreateEventScreen() {
   }
 
   async function pickImage() {
+    if (!user) {
+      Alert.alert('', 'Сначала войди в аккаунт');
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { Alert.alert('', 'Нужен доступ к фото'); return; }
 
@@ -117,19 +120,14 @@ export default function CreateEventScreen() {
     const localUri = result.assets[0].uri;
     setUploading(true);
     try {
-      const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' as any });
-      const filename = `event-${Date.now()}.jpg`;
-      const { error } = await supabase.storage
-        .from('event-photos')
-        .upload(filename, decode(base64), { contentType: 'image/jpeg' });
-      if (error) {
-        setImageUri(localUri);
-      } else {
-        const { data: { publicUrl } } = supabase.storage.from('event-photos').getPublicUrl(filename);
-        setImageUri(publicUrl);
-      }
-    } catch {
-      setImageUri(localUri);
+      const publicUrl = await uploadImageToStorage({
+        bucket: 'event-photos',
+        path: `${user.id}/event-${eventId ?? 'new'}-${Date.now()}`,
+        uri: localUri,
+      });
+      setImageUri(publicUrl);
+    } catch (e: any) {
+      Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');
     } finally {
       setUploading(false);
     }

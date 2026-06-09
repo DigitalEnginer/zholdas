@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
 import { categoryEmojis } from '../data/mockEvents';
+import AvatarImage from '../components/AvatarImage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -59,7 +60,13 @@ export default function ProfileScreen() {
             onPress={() => navigation.navigate('EditProfile')}
             activeOpacity={0.8}
           >
-            <Text style={styles.avatarText}>{user.avatar}</Text>
+            <AvatarImage
+              value={user.avatar}
+              size={90}
+              backgroundColor={theme.accentLight}
+              borderColor={theme.accent}
+              textSize={44}
+            />
             <View style={[styles.editBadge, { backgroundColor: theme.accent }]}>
               <Text style={styles.editBadgeText}>✎</Text>
             </View>
@@ -158,7 +165,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 14, borderWidth: 3,
   },
-  avatarText: { fontSize: 44 },
   editBadge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 26, height: 26, borderRadius: 13,

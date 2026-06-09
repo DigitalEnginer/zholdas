@@ -4,6 +4,7 @@ import { AppRole } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 interface ProfileRow {
   id: string;
@@ -84,7 +85,7 @@ export default function AdminRolesScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {profiles.map(profile => (
           <View key={profile.id} style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={styles.avatar}>{profile.avatar}</Text>
+            <AvatarImage value={profile.avatar} size={42} backgroundColor={theme.accentLight} textSize={24} />
             <View style={styles.info}>
               <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
               <Text style={[styles.email, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
@@ -115,8 +116,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { fontSize: 18, fontWeight: '800' },
   content: { padding: 16, paddingBottom: 36 },
-  card: { flexDirection: 'row', borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
-  avatar: { fontSize: 30, marginRight: 12 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '800' },
   email: { fontSize: 12, marginTop: 3 },

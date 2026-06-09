@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useBadge } from '../context/BadgeContext';
 import { supabase } from '../lib/supabase';
+import AvatarImage from '../components/AvatarImage';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -43,7 +44,7 @@ function ActivityCard({ item, onPress }: { item: ActivityItem; onPress: () => vo
       activeOpacity={0.8}
     >
       <View style={[styles.avatarWrap, { backgroundColor: theme.accentLight }]}>
-        <Text style={styles.avatar}>{item.userAvatar}</Text>
+        <AvatarImage value={item.userAvatar} size={46} backgroundColor={theme.accentLight} textSize={24} />
       </View>
       <View style={styles.content}>
         <Text style={[styles.text, { color: theme.text }]} numberOfLines={2}>
@@ -225,7 +226,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   avatarWrap: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
-  avatar: { fontSize: 24 },
   content: { flex: 1 },
   text: { fontSize: 14, lineHeight: 20 },
   userName: { fontWeight: '700' },

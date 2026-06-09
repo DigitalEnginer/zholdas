@@ -8,6 +8,7 @@ import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../context/EventsContext';
+import AvatarImage from '../components/AvatarImage';
 
 type ReviewRoute = RouteProp<RootStackParamList, 'Review'>;
 
@@ -132,9 +133,7 @@ export default function ReviewScreen() {
           participants.map(participant => (
             <View key={participant.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{participant.avatar}</Text>
-                </View>
+                <AvatarImage value={participant.avatar} size={48} backgroundColor="#F0EEFF" textSize={24} />
                 <View style={styles.info}>
                   <Text style={styles.name}>{participant.name}</Text>
                   <StarPicker
@@ -185,11 +184,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  avatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#F0EEFF', justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { fontSize: 24 },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 6 },
   starRow: { flexDirection: 'row', gap: 4 },

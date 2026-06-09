@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Alert, Platform, SafeAreaView, ScrollView, Share,
-  StyleSheet, Text, TouchableOpacity, View,
+  StyleSheet, Text, TouchableOpacity, View, Image,
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -85,6 +85,7 @@ export default function EventDetailsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {event.imageUri ? <Image source={{ uri: event.imageUri }} style={styles.heroImage} /> : null}
           <View style={styles.topRow}>
             <View style={styles.categoryBadge}>
               <Text>{categoryEmojis[event.category]}</Text>
@@ -207,7 +208,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 36 },
   empty: { marginTop: 40, textAlign: 'center', fontSize: 15 },
-  hero: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 },
+  hero: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12, overflow: 'hidden' },
+  heroImage: { height: 190, marginHorizontal: -16, marginTop: -16, marginBottom: 14 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   categoryBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F0EEFF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14 },
   categoryText: { color: '#5B4FCF', fontWeight: '800', fontSize: 12 },
