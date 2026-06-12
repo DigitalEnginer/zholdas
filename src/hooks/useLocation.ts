@@ -52,7 +52,11 @@ export function getDistance(from: UserLocation, to: { latitude: number; longitud
   return `${km.toFixed(1)} км`;
 }
 
-export async function openRoute(to: { latitude: number; longitude: number }, label = 'Zholdas event') {
+export async function openRoute(
+  to: { latitude: number; longitude: number },
+  label = 'Zholdas event',
+  _from?: { latitude: number; longitude: number } | null,
+) {
   const destination = `${to.latitude},${to.longitude}`;
   const encodedLabel = encodeURIComponent(label);
   const url = Platform.select({

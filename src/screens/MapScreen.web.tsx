@@ -149,7 +149,7 @@ export default function MapScreen() {
                       style={styles.routeButton}
                       onPress={() => {
                         setRouteTargetId(event.id);
-                        openRoute(event.coordinate, event.title);
+                        openRoute(event.coordinate, event.title, userLocation);
                       }}
                     >
                       <Text style={styles.routeButtonText}>Маршрут</Text>

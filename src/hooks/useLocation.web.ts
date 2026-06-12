@@ -52,9 +52,15 @@ export function getDistance(from: UserLocation, to: { latitude: number; longitud
   return `${km.toFixed(1)} км`;
 }
 
-export async function openRoute(to: { latitude: number; longitude: number }, label = 'Zholdas event') {
-  const longitude = to.longitude.toFixed(6);
-  const latitude = to.latitude.toFixed(6);
-  const url = `https://2gis.kz/almaty/directions/points/%7C${longitude}%2C${latitude}%3B`;
+export async function openRoute(
+  to: { latitude: number; longitude: number },
+  label = 'Zholdas event',
+  from?: { latitude: number; longitude: number } | null,
+) {
+  const destination = `${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
+  const points = from
+    ? `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${destination};`
+    : `|${destination};`;
+  const url = `https://2gis.kz/almaty/directions/points/${encodeURIComponent(points)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
