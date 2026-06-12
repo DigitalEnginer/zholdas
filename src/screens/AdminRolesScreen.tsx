@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import { isSuperAdmin } from '../lib/adminAccess';
 
 interface ProfileRow {
   id: string;
@@ -27,7 +28,7 @@ export default function AdminRolesScreen() {
   }, []);
 
   async function loadProfiles() {
-    if (user?.role !== 'admin') {
+    if (!isSuperAdmin(user)) {
       setLoading(false);
       return;
     }
@@ -70,7 +71,7 @@ export default function AdminRolesScreen() {
     );
   }
 
-  if (user?.role !== 'admin') {
+  if (!isSuperAdmin(user)) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <View style={styles.center}>

@@ -97,6 +97,7 @@ export type RootStackParamList = {
   Review: { eventId: string; eventTitle: string };
   UserProfile: { userId: string; userName: string; userAvatar: string };
   ModeratorDashboard: undefined;
+  AdminDashboard: undefined;
   EventParticipants: { eventId: string; eventTitle: string };
   Friends: undefined;
   Notifications: undefined;

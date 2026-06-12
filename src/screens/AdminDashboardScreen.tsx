@@ -1,0 +1,408 @@
+import React from 'react';
+import {
+  ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView, StyleSheet,
+  Text, TouchableOpacity, View,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { EventStatus, RootStackParamList } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { supabase } from '../lib/supabase';
+import { getSuperAdminEmailRequirement, isSuperAdmin } from '../lib/adminAccess';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+type AdminTab = 'overview' | 'events' | 'chats';
+
+interface AdminEvent {
+  id: string;
+  title: string;
+  status: EventStatus;
+  created_by: string | null;
+  created_at: string;
+  datetime: string | null;
+  participants_count: number | null;
+}
+
+interface AdminMessage {
+  id: string;
+  event_id: string;
+  user_id: string;
+  user_name: string;
+  text: string;
+  is_ai: boolean | null;
+  created_at: string;
+}
+
+interface StatCard {
+  label: string;
+  value: number;
+  tone: string;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export default function AdminDashboardScreen() {
+  const navigation = useNavigation<Nav>();
+  const { user } = useAuth();
+  const { theme } = useTheme();
+  const [activeTab, setActiveTab] = React.useState<AdminTab>('overview');
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [stats, setStats] = React.useState<StatCard[]>([]);
+  const [events, setEvents] = React.useState<AdminEvent[]>([]);
+  const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
+  const [messages, setMessages] = React.useState<AdminMessage[]>([]);
+
+  const isAdmin = isSuperAdmin(user);
+  const selectedEvent = events.find(event => event.id === selectedEventId) ?? null;
+
+  React.useEffect(() => {
+    loadAdminData();
+  }, []);
+
+  React.useEffect(() => {
+    if (selectedEventId) loadEventMessages(selectedEventId);
+  }, [selectedEventId]);
+
+  async function countRows(table: string, filter?: (query: any) => any) {
+    let query = supabase.from(table).select('id', { count: 'exact', head: true });
+    if (filter) query = filter(query);
+    const { count } = await query;
+    return count ?? 0;
+  }
+
+  async function loadAdminData() {
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
+    const [
+      usersCount,
+      eventsCount,
+      activeEventsCount,
+      messagesCount,
+      pendingReportsCount,
+      bansCount,
+      { data: eventsData },
+    ] = await Promise.all([
+      countRows('profiles'),
+      countRows('events'),
+      countRows('events', query => query.eq('status', 'active')),
+      countRows('messages'),
+      countRows('reports', query => query.eq('status', 'pending')),
+      countRows('user_bans'),
+      supabase
+        .from('events')
+        .select('id, title, status, created_by, created_at, datetime, participants_count')
+        .order('created_at', { ascending: false })
+        .limit(80),
+    ]);
+
+    setStats([
+      { label: 'Юзеры', value: usersCount, tone: theme.accent },
+      { label: 'Ивенты', value: eventsCount, tone: '#2E9E5D' },
+      { label: 'Активные', value: activeEventsCount, tone: '#0EA5E9' },
+      { label: 'Сообщения', value: messagesCount, tone: '#8B5CF6' },
+      { label: 'Жалобы', value: pendingReportsCount, tone: '#D92D20' },
+      { label: 'Баны', value: bansCount, tone: '#E07B2C' },
+    ]);
+
+    const nextEvents = ((eventsData ?? []) as any[]).map(event => ({
+      id: event.id,
+      title: event.title,
+      status: event.status ?? 'active',
+      created_by: event.created_by,
+      created_at: event.created_at,
+      datetime: event.datetime,
+      participants_count: event.participants_count,
+    }));
+
+    setEvents(nextEvents);
+    setSelectedEventId(prev => prev ?? nextEvents[0]?.id ?? null);
+    setLoading(false);
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    await loadAdminData();
+    if (selectedEventId) await loadEventMessages(selectedEventId);
+    setRefreshing(false);
+  }
+
+  async function loadEventMessages(eventId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, event_id, user_id, user_name, text, is_ai, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(80);
+
+    if (error) {
+      Alert.alert('Не удалось открыть чат', error.message);
+      setMessages([]);
+      return;
+    }
+
+    setMessages((data ?? []) as AdminMessage[]);
+  }
+
+  async function setEventStatus(event: AdminEvent, status: EventStatus) {
+    const { error } = await supabase.rpc('set_event_status', {
+      p_event_id: event.id,
+      p_status: status,
+      p_cancel_reason: status === 'cancelled' ? 'Закрыто администратором' : null,
+    });
+
+    if (error) {
+      Alert.alert('Не удалось изменить статус', error.message);
+      return;
+    }
+
+    await loadAdminData();
+  }
+
+  function deleteEvent(event: AdminEvent) {
+    Alert.alert('Удалить ивент?', `"${event.title}" пропадет из приложения.`, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('events').delete().eq('id', event.id);
+          if (error) {
+            Alert.alert('Не удалось удалить', error.message);
+            return;
+          }
+          await loadAdminData();
+        },
+      },
+    ]);
+  }
+
+  async function deleteMessage(message: AdminMessage) {
+    const { error } = await supabase.from('messages').delete().eq('id', message.id);
+    if (error) {
+      Alert.alert('Не удалось удалить сообщение', error.message);
+      return;
+    }
+    setMessages(prev => prev.filter(item => item.id !== message.id));
+  }
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        <View style={styles.center}>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>Нет доступа</Text>
+          <Text style={[styles.emptyText, { color: theme.subtext }]}>
+            Админ-панель доступна только super-admin аккаунту
+            {getSuperAdminEmailRequirement() ? `: ${getSuperAdminEmailRequirement()}` : '.'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator color={theme.accent} style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
+      >
+        <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.heroTitle, { color: theme.text }]}>Super Admin</Text>
+          <Text style={[styles.heroText, { color: theme.subtext }]}>
+            Доступ ко всем чатам, ивентам, модерации и статистике. Админ не добавляется в участники чатов.
+          </Text>
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('ModeratorDashboard')}>
+              <Text style={styles.quickBtnText}>Модерация</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: '#1A1A2E' }]} onPress={() => navigation.navigate('AdminRoles')}>
+              <Text style={styles.quickBtnText}>Роли</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+          {[
+            { key: 'overview', label: 'Статистика' },
+            { key: 'events', label: 'Ивенты' },
+            { key: 'chats', label: 'Чаты' },
+          ].map(tab => {
+            const selected = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                onPress={() => setActiveTab(tab.key as AdminTab)}
+              >
+                <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {activeTab === 'overview' && (
+          <View style={styles.statsGrid}>
+            {stats.map(stat => (
+              <View key={stat.label} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Text style={[styles.statValue, { color: stat.tone }]}>{stat.value}</Text>
+                <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeTab === 'events' && (
+          <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Управление ивентами</Text>
+            {events.map(event => (
+              <View key={event.id} style={[styles.eventCard, { borderTopColor: theme.border }]}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.eventInfo}>
+                    <Text style={[styles.itemTitle, { color: theme.text }]}>{event.title}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>
+                      {event.status} · {event.participants_count ?? 0} участников · {formatDate(event.created_at)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
+                    onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}
+                  >
+                    <Text style={[styles.smallBtnText, { color: theme.accent }]}>Открыть</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.actions}>
+                  {event.status !== 'finished' && (
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#2E9E5D' }]} onPress={() => setEventStatus(event, 'finished')}>
+                      <Text style={styles.actionText}>Закрыть</Text>
+                    </TouchableOpacity>
+                  )}
+                  {event.status !== 'cancelled' && (
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#E07B2C' }]} onPress={() => setEventStatus(event, 'cancelled')}>
+                      <Text style={styles.actionText}>Отменить</Text>
+                    </TouchableOpacity>
+                  )}
+                  {event.status !== 'active' && (
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => setEventStatus(event, 'active')}>
+                      <Text style={styles.actionText}>Активировать</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#D92D20' }]} onPress={() => deleteEvent(event)}>
+                    <Text style={styles.actionText}>Удалить</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {activeTab === 'chats' && (
+          <View style={styles.chatLayout}>
+            <View style={[styles.section, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Все чаты</Text>
+              {events.map(event => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[
+                    styles.chatEventRow,
+                    { borderTopColor: theme.border },
+                    selectedEventId === event.id && { backgroundColor: theme.accentLight },
+                  ]}
+                  onPress={() => setSelectedEventId(event.id)}
+                >
+                  <Text style={[styles.itemTitle, { color: selectedEventId === event.id ? theme.accent : theme.text }]}>{event.title}</Text>
+                  <Text style={[styles.itemMeta, { color: theme.subtext }]}>{event.status} · {formatDate(event.created_at)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={[styles.section, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.subtext }]}>
+                {selectedEvent ? `Чат: ${selectedEvent.title}` : 'Чат'}
+              </Text>
+              {messages.length === 0 ? (
+                <Text style={[styles.emptyText, { color: theme.subtext }]}>Сообщений нет или нет доступа по RLS.</Text>
+              ) : (
+                messages.map(message => (
+                  <View key={message.id} style={[styles.messageRow, { borderTopColor: theme.border }]}>
+                    <View style={styles.messageBody}>
+                      <Text style={[styles.messageAuthor, { color: message.is_ai ? '#E07B2C' : theme.text }]}>
+                        {message.user_name || (message.is_ai ? 'Жолдас AI' : 'Пользователь')}
+                      </Text>
+                      <Text style={[styles.messageText, { color: theme.subtext }]}>{message.text || '[медиа]'}</Text>
+                      <Text style={[styles.itemMeta, { color: theme.subtext }]}>{formatDate(message.created_at)}</Text>
+                    </View>
+                    {!message.is_ai && (
+                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#FEE4E2' }]} onPress={() => deleteMessage(message)}>
+                        <Text style={[styles.smallBtnText, { color: '#D92D20' }]}>Удалить</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 36 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  hero: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 },
+  heroTitle: { fontSize: 22, fontWeight: '900' },
+  heroText: { fontSize: 13, lineHeight: 18, marginTop: 6 },
+  quickActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  quickBtn: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  quickBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  tabText: { fontSize: 13, fontWeight: '800' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16 },
+  statValue: { fontSize: 28, fontWeight: '900' },
+  statLabel: { fontSize: 12, marginTop: 4 },
+  section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
+  sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, padding: 16, paddingBottom: 8 },
+  eventCard: { padding: 16, borderTopWidth: 1 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  eventInfo: { flex: 1 },
+  itemTitle: { fontSize: 15, fontWeight: '800' },
+  itemMeta: { fontSize: 12, marginTop: 3 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  actionBtn: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  actionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  smallBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
+  smallBtnText: { fontSize: 12, fontWeight: '800' },
+  chatLayout: { gap: 0 },
+  chatEventRow: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
+  messageRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 16, borderTopWidth: 1 },
+  messageBody: { flex: 1 },
+  messageAuthor: { fontSize: 13, fontWeight: '900' },
+  messageText: { fontSize: 13, lineHeight: 18, marginTop: 4 },
+  emptyTitle: { fontSize: 18, fontWeight: '900', marginBottom: 6 },
+  emptyText: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingBottom: 16, textAlign: 'center' },
+});
