@@ -59,7 +59,7 @@ export async function openRoute(
 ) {
   const destination = `${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
   const points = from
-    ? `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${destination};`
+    ? `|${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};|${destination};`
     : `|${destination};`;
   const url = `https://2gis.kz/almaty/directions/points/${encodeURIComponent(points)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
