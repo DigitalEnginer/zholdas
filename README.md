@@ -173,10 +173,10 @@ where id = 'user-uuid-here';
 The super admin panel is available only to an authenticated Supabase user with `profiles.role = 'admin'` and, when configured, matching:
 
 ```env
-EXPO_PUBLIC_SUPER_ADMIN_EMAIL=admin@example.com
+EXPO_PUBLIC_SUPER_ADMIN_EMAIL=admin@example.com,second-admin@example.com
 ```
 
-For database-level access to all chats, event deletion, and site stats, run `supabase_admin_panel.sql` after replacing `admin@example.com` with the real super admin email.
+For database-level access to all chats, event deletion, and site stats, run `supabase_admin_panel.sql` after replacing `admin@example.com` with the real super admin email. Add one row per super admin in `public.super_admin_emails`.
 
 ## Social Features
 
