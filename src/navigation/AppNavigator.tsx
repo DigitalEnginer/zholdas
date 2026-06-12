@@ -55,7 +55,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarLabelStyle: [styles.tabLabel, { color: theme.subtext }],
+        tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.subtext,
         tabBarStyle: [styles.tabBar, { backgroundColor: theme.tabBar, borderTopColor: theme.border }],
@@ -182,12 +182,12 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     borderTopWidth: 1, elevation: 0,
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08, shadowRadius: 12, height: 70,
-    paddingBottom: 10, paddingTop: 6,
+    shadowColor: '#101828', shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.08, shadowRadius: 18, height: 72,
+    paddingBottom: 11, paddingTop: 7,
   },
-  tabLabel: { fontSize: 11, fontWeight: '600' },
-  tabIcon: { width: 36, height: 28, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  tabLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tabIcon: { width: 38, height: 30, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   tabEmoji: { fontSize: 18 },
   badgeDot: {
     position: 'absolute', top: -4, right: -6,

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
@@ -8,6 +8,7 @@ import re
 import requests
 import time
 from urllib.parse import quote
+from uuid import UUID
 
 load_dotenv()
 
@@ -15,6 +16,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+BACKEND_CORS_ORIGINS = os.getenv(
+    "BACKEND_CORS_ORIGINS",
+    "http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081,https://zholdas.vercel.app",
+)
+BACKEND_CORS_ORIGIN_REGEX = os.getenv("BACKEND_CORS_ORIGIN_REGEX", r"https://.*\.vercel\.app")
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is missing")
@@ -27,19 +33,38 @@ if not SUPABASE_ANON_KEY:
 
 app = FastAPI()
 
+
+def parse_csv_env(value: str):
+    return [item.strip().rstrip("/") for item in value.split(",") if item.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=parse_csv_env(BACKEND_CORS_ORIGINS),
+    allow_origin_regex=BACKEND_CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    return response
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 AI_RATE_WINDOW_SECONDS = 10 * 60
 AI_RATE_LIMIT = 8
+ADMIN_DELETE_RATE_WINDOW_SECONDS = 10 * 60
+ADMIN_DELETE_RATE_LIMIT = 5
 ai_rate_log: dict[str, list[float]] = {}
+admin_delete_rate_log: dict[str, list[float]] = {}
 USER_STORAGE_BUCKETS = ("profile-photos", "event-photos", "chat-photos")
 
 OUT_OF_SCOPE_PATTERNS = [
@@ -89,6 +114,32 @@ def ensure_ai_rate_limit(user_id: str):
 
     recent.append(now)
     ai_rate_log[user_id] = recent
+
+
+def ensure_admin_delete_rate_limit(admin_id: str):
+    now = time.time()
+    recent = [
+        timestamp
+        for timestamp in admin_delete_rate_log.get(admin_id, [])
+        if now - timestamp < ADMIN_DELETE_RATE_WINDOW_SECONDS
+    ]
+
+    if len(recent) >= ADMIN_DELETE_RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Too many admin delete attempts. Try again later.")
+
+    recent.append(now)
+    admin_delete_rate_log[admin_id] = recent
+
+
+def ensure_uuid(value: str | None, field_name: str):
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+
+
+def raise_upstream_error(action: str):
+    raise HTTPException(status_code=502, detail=f"{action} failed")
 
 
 def normalize_text(value: str | None):
@@ -168,7 +219,7 @@ def fetch_service_rows(table: str, params: dict):
     )
 
     if response.status_code != 200:
-        raise HTTPException(status_code=500, detail=f"Could not load {table}: {response.text}")
+        raise_upstream_error("Supabase read")
 
     return response.json()
 
@@ -186,7 +237,7 @@ def insert_service_row(table: str, payload: dict):
     )
 
     if response.status_code not in (200, 201, 204):
-        raise HTTPException(status_code=500, detail=f"Could not insert into {table}: {response.text}")
+        raise_upstream_error("Supabase insert")
 
 
 def get_system_setting(key: str, default: str | None = None):
@@ -271,7 +322,7 @@ def rest_delete(table: str, params: dict, *, optional: bool = False):
     if optional and response.status_code in (404, 400):
         return
 
-    raise HTTPException(status_code=500, detail=f"Could not delete from {table}: {response.text}")
+    raise_upstream_error("Supabase delete")
 
 
 def delete_auth_user(user_id: str):
@@ -282,7 +333,7 @@ def delete_auth_user(user_id: str):
     )
 
     if response.status_code not in (200, 204):
-        raise HTTPException(status_code=500, detail=f"Could not delete auth user: {response.text}")
+        raise_upstream_error("Supabase auth delete")
 
 
 def list_storage_objects(bucket: str, prefix: str):
@@ -483,8 +534,10 @@ def me(authorization: str | None = Header(default=None)):
 
 @app.delete("/admin/users/{target_user_id}")
 def admin_delete_user(target_user_id: str, authorization: str | None = Header(default=None)):
+    target_user_id = ensure_uuid(target_user_id, "target_user_id")
     user = verify_supabase_token(authorization)
     admin_profile = ensure_super_admin(user.get("id"))
+    ensure_admin_delete_rate_limit(admin_profile.get("id"))
 
     if target_user_id == user.get("id"):
         raise HTTPException(status_code=400, detail="Admins cannot delete their own account")
@@ -530,6 +583,7 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
     ensure_user_is_not_banned(user.get("id"), token)
     ensure_ai_is_enabled()
     if request.event_id:
+        request.event_id = ensure_uuid(request.event_id, "event_id")
         ensure_event_participant(request.event_id, user.get("id"), token)
 
     try:
@@ -586,5 +640,5 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="AI request failed")

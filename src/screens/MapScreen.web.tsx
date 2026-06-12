@@ -37,9 +37,9 @@ function eventIcon(event: Event, joined: boolean) {
         <div style="
           width: 40px; height: 40px; border-radius: 20px 20px 20px 6px;
           transform: rotate(-45deg);
-          background: ${joined ? '#5B4FCF' : '#ffffff'};
-          border: 3px solid #5B4FCF;
-          box-shadow: 0 10px 24px rgba(39, 32, 112, 0.22);
+          background: ${joined ? '#4F46E5' : '#ffffff'};
+          border: 3px solid #4F46E5;
+          box-shadow: 0 12px 28px rgba(16, 24, 40, 0.22);
           display: flex; align-items: center; justify-content: center;
         ">
           <span style="
@@ -219,35 +219,38 @@ export default function MapScreen() {
 const leafletMapStyle: React.CSSProperties = { height: '100%', width: '100%' };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EEF2F3' },
+  container: { flex: 1, backgroundColor: '#EEF2F6' },
   header: {
     position: 'absolute', top: 18, left: 16, right: 16,
     backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(228,231,236,0.9)',
     paddingHorizontal: 14,
     paddingVertical: 12,
-    shadowColor: '#1A1A2E',
+    maxWidth: 420,
+    shadowColor: '#101828',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 18,
   },
-  headerTitle: { fontSize: 18, fontWeight: '900', color: '#1A1A2E' },
-  headerSubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
+  headerSubtitle: { fontSize: 12, color: '#667085', marginTop: 2 },
   filterBar: { position: 'absolute', top: 92, left: 0, right: 0 },
   filterScroll: { paddingHorizontal: 16, gap: 8 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 1, borderColor: 'rgba(91,79,207,0.14)',
-    shadowColor: '#1A1A2E',
+    borderWidth: 1, borderColor: 'rgba(228,231,236,0.95)',
+    shadowColor: '#101828',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
   },
-  filterChipActive: { backgroundColor: '#5B4FCF', borderColor: '#5B4FCF' },
+  filterChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   filterEmoji: { fontSize: 14 },
-  filterLabel: { fontSize: 12, color: '#555', fontWeight: '600' },
+  filterLabel: { fontSize: 12, color: '#475467', fontWeight: '700' },
   filterLabelActive: { color: '#FFF' },
   routeBanner: {
     position: 'absolute', top: 140, left: 16, right: 16,
@@ -263,27 +266,27 @@ const styles = StyleSheet.create({
   routeCloseText: { color: '#2E9E5D', fontSize: 20, fontWeight: '700', lineHeight: 22 },
   createFab: {
     position: 'absolute', bottom: 28, right: 16,
-    backgroundColor: '#5B4FCF', borderRadius: 24,
+    backgroundColor: '#4F46E5', borderRadius: 16,
     paddingHorizontal: 18, paddingVertical: 12,
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35, shadowRadius: 10,
   },
   createFabText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
   popup: { width: 230, gap: 6 },
-  popupCategory: { color: '#5B4FCF', fontSize: 12, fontWeight: '800' },
-  popupTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800' },
-  popupMeta: { color: '#555', fontSize: 12 },
+  popupCategory: { color: '#4338CA', fontSize: 12, fontWeight: '800' },
+  popupTitle: { color: '#111827', fontSize: 16, fontWeight: '800' },
+  popupMeta: { color: '#475467', fontSize: 12 },
   popupStatus: { color: '#D92D20', fontSize: 12, fontWeight: '800' },
   popupActions: { gap: 8, marginTop: 8 },
-  secondaryButton: { backgroundColor: '#F0EEFF', borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
-  secondaryButtonText: { color: '#5B4FCF', fontSize: 13, fontWeight: '800' },
+  secondaryButton: { backgroundColor: '#EEF2FF', borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
+  secondaryButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '800' },
   routeButton: { backgroundColor: '#EAF7EF', borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
   routeButtonText: { color: '#2E9E5D', fontSize: 13, fontWeight: '800' },
   joinButton: {
     borderRadius: 12, paddingVertical: 9, alignItems: 'center',
-    borderWidth: 2, borderColor: '#5B4FCF',
+    borderWidth: 2, borderColor: '#4F46E5',
   },
-  joinButtonActive: { backgroundColor: '#5B4FCF' },
-  joinButtonText: { color: '#5B4FCF', fontSize: 13, fontWeight: '800' },
+  joinButtonActive: { backgroundColor: '#4F46E5' },
+  joinButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '800' },
   joinButtonTextActive: { color: '#FFF' },
 });

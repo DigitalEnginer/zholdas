@@ -305,7 +305,7 @@ export default function CreateEventScreen() {
                   setAddress('');
                 }}
               >
-                <Marker coordinate={coordinate} pinColor="#5B4FCF" />
+                <Marker coordinate={coordinate} pinColor="#4F46E5" />
               </MapView>
             </View>
             <Text style={styles.coords}>
@@ -379,7 +379,7 @@ export default function CreateEventScreen() {
             <Text style={styles.label}>Фото (необязательно)</Text>
             <TouchableOpacity style={styles.photoBtn} onPress={pickImage} disabled={uploading} activeOpacity={0.8}>
               {uploading ? (
-                <ActivityIndicator color="#5B4FCF" />
+                <ActivityIndicator color="#4F46E5" />
               ) : imageUri ? (
                 <Image source={{ uri: imageUri }} style={styles.photoPreview} />
               ) : (
@@ -415,82 +415,82 @@ export default function CreateEventScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F7FF' },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
   flex: { flex: 1 },
   section: { padding: 16, paddingBottom: 0 },
   label: {
-    fontSize: 13, fontWeight: '700', color: '#888',
-    textTransform: 'uppercase', letterSpacing: 0.8,
+    fontSize: 13, fontWeight: '700', color: '#667085',
+    textTransform: 'uppercase',
     marginBottom: 8, marginTop: 16,
   },
-  sublabel: { fontSize: 12, color: '#AAA', fontWeight: '600', marginBottom: 8, marginTop: 12 },
-  hint: { fontSize: 12, color: '#AAA', marginBottom: 8 },
+  sublabel: { fontSize: 12, color: '#98A2B3', fontWeight: '700', marginBottom: 8, marginTop: 12 },
+  hint: { fontSize: 12, color: '#98A2B3', marginBottom: 8 },
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   catBtn: {
     alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: 14, backgroundColor: '#FFF',
-    borderWidth: 1.5, borderColor: '#E8E5FF',
+    borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  catBtnActive: { backgroundColor: '#5B4FCF', borderColor: '#5B4FCF' },
+  catBtnActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   catEmoji: { fontSize: 20, marginBottom: 4 },
-  catLabel: { fontSize: 11, color: '#555', fontWeight: '600' },
+  catLabel: { fontSize: 11, color: '#475467', fontWeight: '700' },
   catLabelActive: { color: '#FFF' },
   input: {
-    backgroundColor: '#FFF', borderRadius: 14,
+    backgroundColor: '#FFF', borderRadius: 12,
     paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 15, color: '#1A1A2E',
-    borderWidth: 1.5, borderColor: '#E8E5FF',
+    fontSize: 15, color: '#111827',
+    borderWidth: 1.5, borderColor: '#E4E7EC',
   },
   inputMulti: { minHeight: 80, textAlignVertical: 'top' },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   addressInput: { flex: 1 },
   geocodeBtn: {
-    backgroundColor: '#5B4FCF', borderRadius: 14,
+    backgroundColor: '#4F46E5', borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 12,
     justifyContent: 'center', alignItems: 'center', minWidth: 70,
   },
-  geocodeBtnDisabled: { backgroundColor: '#C5BFFF' },
+  geocodeBtnDisabled: { backgroundColor: '#C7D2FE' },
   geocodeBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  addressFound: { fontSize: 13, color: '#5B4FCF', fontWeight: '600', marginTop: 8, marginBottom: 4 },
-  mapWrap: { borderRadius: 16, overflow: 'hidden', height: 200, marginTop: 8 },
+  addressFound: { fontSize: 13, color: '#4338CA', fontWeight: '700', marginTop: 8, marginBottom: 4 },
+  mapWrap: { borderRadius: 16, overflow: 'hidden', height: 200, marginTop: 8, borderWidth: 1, borderColor: '#E4E7EC' },
   map: { flex: 1 },
-  coords: { fontSize: 11, color: '#AAA', marginTop: 6, textAlign: 'center' },
+  coords: { fontSize: 11, color: '#98A2B3', marginTop: 6, textAlign: 'center' },
   filterBtn: {
     flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4,
     borderRadius: 14, backgroundColor: '#FFF',
-    borderWidth: 1.5, borderColor: '#E8E5FF',
+    borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  filterBtnActive: { backgroundColor: '#F0EEFF', borderColor: '#5B4FCF' },
+  filterBtnActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
   filterEmoji: { fontSize: 18, marginBottom: 4 },
-  filterLabel: { fontSize: 10, color: '#777', fontWeight: '600', textAlign: 'center' },
-  filterLabelActive: { color: '#5B4FCF' },
+  filterLabel: { fontSize: 10, color: '#667085', fontWeight: '700', textAlign: 'center' },
+  filterLabelActive: { color: '#4338CA' },
   ageRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   ageField: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ageHint: { fontSize: 13, color: '#999' },
+  ageHint: { fontSize: 13, color: '#667085' },
   ageInput: { width: 70, textAlign: 'center' },
-  ageDash: { fontSize: 18, color: '#CCC' },
-  ageUnit: { fontSize: 13, color: '#999' },
+  ageDash: { fontSize: 18, color: '#D0D5DD' },
+  ageUnit: { fontSize: 13, color: '#667085' },
   audienceBadge: {
-    marginTop: 12, backgroundColor: '#F0EEFF', borderRadius: 10,
+    marginTop: 12, backgroundColor: '#EEF2FF', borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start',
   },
-  audienceText: { fontSize: 13, color: '#5B4FCF', fontWeight: '700' },
+  audienceText: { fontSize: 13, color: '#4338CA', fontWeight: '700' },
   photoBtn: {
     borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: '#E8E5FF',
+    borderWidth: 1.5, borderColor: '#E4E7EC',
     borderStyle: 'dashed', minHeight: 120,
     justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF',
   },
   photoPreview: { width: '100%', height: 160, borderRadius: 14 },
   photoPlaceholder: { alignItems: 'center', paddingVertical: 24 },
   photoIcon: { fontSize: 36, marginBottom: 8 },
-  photoHint: { fontSize: 14, color: '#888' },
+  photoHint: { fontSize: 14, color: '#667085' },
   removePhoto: { alignItems: 'center', marginTop: 8 },
-  removePhotoText: { fontSize: 13, color: '#FF4D4D' },
+  removePhotoText: { fontSize: 13, color: '#D92D20' },
   createBtn: {
-    margin: 16, marginTop: 24, backgroundColor: '#5B4FCF',
-    borderRadius: 16, paddingVertical: 16, alignItems: 'center',
+    margin: 16, marginTop: 24, backgroundColor: '#4F46E5',
+    borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
-  createBtnDisabled: { backgroundColor: '#C5BFFF' },
+  createBtnDisabled: { backgroundColor: '#C7D2FE' },
   createBtnText: { fontSize: 17, fontWeight: '800', color: '#FFF' },
 });

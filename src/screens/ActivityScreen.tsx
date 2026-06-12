@@ -209,7 +209,7 @@ export default function ActivityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
+  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, width: '100%', maxWidth: 860, alignSelf: 'center' },
   title: { fontSize: 28, fontWeight: '800', marginBottom: 6 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   subtitle: { fontSize: 14 },
@@ -217,13 +217,13 @@ const styles = StyleSheet.create({
     borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6,
   },
   filterToggleText: { fontSize: 13, fontWeight: '700' },
-  list: { paddingHorizontal: 16, paddingBottom: 24 },
+  list: { paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 860, alignSelf: 'center' },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: 16, padding: 14, marginBottom: 10,
     borderWidth: 1,
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
   },
   avatarWrap: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1 },

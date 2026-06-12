@@ -50,7 +50,7 @@ export default function AvatarImage({ value, size, backgroundColor, borderColor,
 }
 
 const styles = StyleSheet.create({
-  image: { borderWidth: 2, backgroundColor: '#F0EEFF' },
+  image: { borderWidth: 2, backgroundColor: '#EEF2FF' },
   emojiWrap: {
     justifyContent: 'center',
     alignItems: 'center',

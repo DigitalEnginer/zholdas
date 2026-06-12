@@ -71,6 +71,15 @@ EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
 
 Deploy the FastAPI backend first, or leave AI chat on fallback responses until a public backend exists.
 
+Set these backend environment variables on Render:
+
+```env
+BACKEND_CORS_ORIGINS=https://your-vercel-domain.vercel.app
+BACKEND_CORS_ORIGIN_REGEX=https://.*\.vercel\.app
+```
+
+Remove `BACKEND_CORS_ORIGIN_REGEX` if you want only the production Vercel domain to call the backend.
+
 ## MVP Limitations
 
 - Web map uses OpenStreetMap tiles, not Google Maps or 2GIS.

@@ -83,6 +83,6 @@ export const eventStatusLabels: Record<string, string> = {
 
 export const eventStatusColors: Record<string, string> = {
   active: '#2E9E5D',
-  finished: '#5B4FCF',
+  finished: '#4F46E5',
   cancelled: '#D92D20',
 };

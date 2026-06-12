@@ -204,16 +204,20 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36 },
-  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 820, alignSelf: 'center' },
+  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
   tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   tabText: { fontSize: 12, fontWeight: '800' },
-  section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
+  section: {
+    borderRadius: 16, overflow: 'hidden', marginBottom: 12,
+    borderWidth: 1, borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05, shadowRadius: 16, elevation: 2,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 8,

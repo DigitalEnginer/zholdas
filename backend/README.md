@@ -27,6 +27,8 @@ OPENAI_API_KEY=your_openai_api_key_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+BACKEND_CORS_ORIGINS=http://localhost:8081,http://localhost:19006,https://your-vercel-domain.vercel.app
+BACKEND_CORS_ORIGIN_REGEX=https://.*\.vercel\.app
 ```
 
 ## Cloud Run Command
@@ -42,3 +44,5 @@ For the public PWA, set the frontend variable to the deployed backend URL:
 ```env
 EXPO_PUBLIC_BACKEND_URL=https://your-public-backend-url
 ```
+
+Set `BACKEND_CORS_ORIGINS` on the backend host to the exact frontend origins that may call it. Keep `BACKEND_CORS_ORIGIN_REGEX` only if Vercel preview deployments should also be allowed.

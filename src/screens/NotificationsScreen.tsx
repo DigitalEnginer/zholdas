@@ -143,14 +143,18 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36 },
-  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 820, alignSelf: 'center' },
+  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
   tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   tabText: { fontSize: 13, fontWeight: '800' },
   readAll: { borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center', marginBottom: 12 },
   readAllText: { fontSize: 13, fontWeight: '800' },
   empty: { marginTop: 40, textAlign: 'center', fontSize: 15 },
-  card: { flexDirection: 'row', borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 10 },
+  card: {
+    flexDirection: 'row', borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 10,
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04, shadowRadius: 12, elevation: 1,
+  },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12, marginTop: 5 },
   body: { flex: 1 },
   title: { fontSize: 15, fontWeight: '800' },

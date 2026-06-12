@@ -82,7 +82,10 @@ export default function ListScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Ивенты</Text>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title}>Ивенты</Text>
+            <Text style={styles.subtitle}>Быстро найди активность рядом</Text>
+          </View>
           <TouchableOpacity
             style={styles.createBtn}
             onPress={() => navigation.navigate('CreateEvent')}
@@ -95,7 +98,7 @@ export default function ListScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="🔍  Поиск ивентов..."
-            placeholderTextColor="#AAA"
+            placeholderTextColor="#98A2B3"
             value={search}
             onChangeText={setSearch}
             clearButtonMode="while-editing"
@@ -168,6 +171,7 @@ export default function ListScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🔍</Text>
             <Text style={styles.emptyText}>Ничего не найдено</Text>
+            <Text style={styles.emptyHint}>Попробуй убрать фильтр или поискать другое место</Text>
           </View>
         }
       />
@@ -176,46 +180,60 @@ export default function ListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F7FF' },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, width: '100%', maxWidth: 960, alignSelf: 'center' },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1A1A2E' },
-  createBtn: { backgroundColor: '#5B4FCF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  createBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  titleBlock: { flex: 1, paddingRight: 12 },
+  title: { fontSize: 28, fontWeight: '900', color: '#111827' },
+  subtitle: { fontSize: 13, color: '#667085', marginTop: 2, fontWeight: '600' },
+  createBtn: { backgroundColor: '#4F46E5', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
   searchRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   searchInput: {
-    flex: 1, backgroundColor: '#FFF', borderRadius: 14,
+    flex: 1, backgroundColor: '#FFF', borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#1A1A2E', borderWidth: 1.5, borderColor: '#E8E5FF',
+    fontSize: 14, color: '#111827', borderWidth: 1.5, borderColor: '#E4E7EC',
   },
   joinedToggle: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E8E5FF', justifyContent: 'center',
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC', justifyContent: 'center',
   },
-  joinedToggleActive: { backgroundColor: '#5B4FCF', borderColor: '#5B4FCF' },
-  joinedToggleText: { fontSize: 13, fontWeight: '700', color: '#5B4FCF' },
+  joinedToggleActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  joinedToggleText: { fontSize: 13, fontWeight: '800', color: '#4338CA' },
   joinedToggleTextActive: { color: '#FFF' },
-  filters: { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 6, flexWrap: 'wrap' },
+  filters: { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 6, flexWrap: 'wrap', width: '100%', maxWidth: 960, alignSelf: 'center' },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E8E5FF',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  filterChipActive: { backgroundColor: '#5B4FCF', borderColor: '#5B4FCF' },
+  filterChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   filterEmoji: { fontSize: 13 },
-  filterLabel: { fontSize: 13, color: '#555', fontWeight: '500' },
+  filterLabel: { fontSize: 13, color: '#475467', fontWeight: '700' },
   filterLabelActive: { color: '#FFF', fontWeight: '700' },
-  quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
+  quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12, paddingBottom: 8, width: '100%', maxWidth: 960, alignSelf: 'center' },
   quickChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E8E5FF',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  quickChipActive: { backgroundColor: '#F0EEFF', borderColor: '#5B4FCF' },
-  quickText: { fontSize: 12, color: '#666', fontWeight: '700' },
-  quickTextActive: { color: '#5B4FCF' },
-  count: { fontSize: 12, color: '#AAA', paddingHorizontal: 16, marginBottom: 4 },
-  list: { paddingVertical: 4, paddingBottom: 24 },
-  empty: { alignItems: 'center', paddingTop: 60 },
+  quickChipActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
+  quickText: { fontSize: 12, color: '#667085', fontWeight: '800' },
+  quickTextActive: { color: '#4338CA' },
+  count: { fontSize: 12, color: '#98A2B3', paddingHorizontal: 16, marginBottom: 4, width: '100%', maxWidth: 960, alignSelf: 'center' },
+  list: { paddingVertical: 4, paddingBottom: 24, paddingHorizontal: 0, width: '100%', maxWidth: 792, alignSelf: 'center' },
+  empty: {
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 48,
+    paddingVertical: 30,
+    paddingHorizontal: 18,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#D0D5DD',
+    borderRadius: 16,
+  },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: '#AAA' },
+  emptyText: { fontSize: 15, color: '#667085', fontWeight: '800' },
+  emptyHint: { fontSize: 12, color: '#98A2B3', marginTop: 4, textAlign: 'center' },
 });

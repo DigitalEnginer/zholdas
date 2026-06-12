@@ -189,7 +189,7 @@ export default function RegisterScreen() {
 
             <TouchableOpacity style={styles.loginLink} onPress={() => navigation.goBack()}>
               <Text style={styles.loginLinkText}>
-                Уже есть аккаунт? <Text style={{ color: '#5B4FCF', fontWeight: '700' }}>Войти</Text>
+                Уже есть аккаунт? <Text style={{ color: '#4F46E5', fontWeight: '700' }}>Войти</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -201,64 +201,66 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F7FF' },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
   flex: { flex: 1 },
   scroll: { padding: 20, paddingTop: 32 },
-  title: { fontSize: 28, fontWeight: '900', color: '#1A1A2E', marginBottom: 4 },
-  subtitle: { fontSize: 15, color: '#888', marginBottom: 24 },
+  title: { fontSize: 28, fontWeight: '900', color: '#111827', marginBottom: 4, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  subtitle: { fontSize: 15, color: '#667085', marginBottom: 24, width: '100%', maxWidth: 640, alignSelf: 'center' },
   card: {
-    backgroundColor: '#FFF', borderRadius: 24, padding: 20,
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 4,
+    backgroundColor: '#FFF', borderRadius: 18, padding: 20,
+    borderWidth: 1, borderColor: '#E4E7EC',
+    width: '100%', maxWidth: 640, alignSelf: 'center',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08, shadowRadius: 24, elevation: 4,
   },
   label: {
-    fontSize: 12, fontWeight: '700', color: '#888',
+    fontSize: 12, fontWeight: '700', color: '#667085',
     marginBottom: 6, marginTop: 14,
-    textTransform: 'uppercase', letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: '#F8F7FF', borderRadius: 14,
+    backgroundColor: '#F9FAFB', borderRadius: 12,
     paddingHorizontal: 16, paddingVertical: 13,
-    fontSize: 15, color: '#1A1A2E', borderWidth: 1.5, borderColor: '#E8E5FF',
+    fontSize: 15, color: '#111827', borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  inputError: { borderColor: '#FF4D4D' },
-  errorText: { fontSize: 12, color: '#FF4D4D', marginTop: 4 },
+  inputError: { borderColor: '#D92D20' },
+  errorText: { fontSize: 12, color: '#D92D20', marginTop: 4 },
   avatarRow: { flexDirection: 'row', gap: 8 },
   avatarBtn: {
     width: 52, height: 52, borderRadius: 26,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#F8F7FF', borderWidth: 2, borderColor: 'transparent',
+    backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent',
   },
-  avatarBtnActive: { borderColor: '#5B4FCF', backgroundColor: '#F0EEFF' },
+  avatarBtnActive: { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' },
   avatarEmoji: { fontSize: 26 },
   passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   eyeBtn: { padding: 10 },
   genderRow: { flexDirection: 'row', gap: 8 },
   genderBtn: {
     flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 14,
-    backgroundColor: '#F8F7FF', borderWidth: 1.5, borderColor: '#E8E5FF',
+    backgroundColor: '#F9FAFB', borderWidth: 1.5, borderColor: '#E4E7EC',
   },
-  genderBtnActive: { backgroundColor: '#F0EEFF', borderColor: '#5B4FCF' },
+  genderBtnActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
   genderEmoji: { fontSize: 22, marginBottom: 4 },
-  genderLabel: { fontSize: 11, color: '#888', fontWeight: '600', textAlign: 'center' },
-  genderLabelActive: { color: '#5B4FCF' },
+  genderLabel: { fontSize: 11, color: '#667085', fontWeight: '600', textAlign: 'center' },
+  genderLabelActive: { color: '#4338CA' },
   previewRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginTop: 20, padding: 14, backgroundColor: '#F8F7FF', borderRadius: 14,
+    marginTop: 20, padding: 14, backgroundColor: '#F9FAFB', borderRadius: 14,
   },
   previewAvatar: {
     width: 52, height: 52, borderRadius: 26,
-    backgroundColor: '#E8E5FF', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
   },
-  previewName: { fontSize: 15, fontWeight: '700', color: '#1A1A2E' },
-  previewEmail: { fontSize: 12, color: '#888', marginTop: 2 },
-  previewAge: { fontSize: 11, color: '#5B4FCF', marginTop: 2 },
+  previewName: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  previewEmail: { fontSize: 12, color: '#667085', marginTop: 2 },
+  previewAge: { fontSize: 11, color: '#4338CA', marginTop: 2 },
   registerBtn: {
-    backgroundColor: '#5B4FCF', borderRadius: 16,
+    backgroundColor: '#4F46E5', borderRadius: 14,
     paddingVertical: 16, alignItems: 'center', marginTop: 20,
   },
-  registerBtnDisabled: { backgroundColor: '#C5BFFF' },
+  registerBtnDisabled: { backgroundColor: '#C7D2FE' },
   registerBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
   loginLink: { alignItems: 'center', paddingVertical: 16 },
-  loginLinkText: { fontSize: 14, color: '#888' },
+  loginLinkText: { fontSize: 14, color: '#667085' },
 });

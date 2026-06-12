@@ -483,8 +483,9 @@ export default function ChatScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyChat}>
-              <Text style={styles.emptyChatText}>Будьте первым! Напишите в чат 👋</Text>
+            <View style={[styles.emptyChat, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={styles.emptyChatIcon}>💬</Text>
+              <Text style={[styles.emptyChatText, { color: theme.subtext }]}>Будьте первым! Напишите в чат 👋</Text>
             </View>
           }
         />
@@ -538,16 +539,17 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   eventBanner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#F0EEFF', paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: '#EEF2FF', paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#E4E7EC',
   },
-  bannerText: { fontSize: 12, color: '#5B4FCF', fontWeight: '600', flex: 1 },
+  bannerText: { fontSize: 12, color: '#4338CA', fontWeight: '700', flex: 1 },
   bannerActions: { flexDirection: 'row', gap: 6 },
   participantsBtn: {
-    backgroundColor: '#F1EEFF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12,
+    backgroundColor: '#F9FAFB', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12,
   },
-  participantsBtnText: { fontSize: 12, color: '#5B4FCF', fontWeight: '700' },
+  participantsBtnText: { fontSize: 12, color: '#4338CA', fontWeight: '700' },
   reviewBtn: {
-    backgroundColor: '#5B4FCF', borderRadius: 12,
+    backgroundColor: '#4F46E5', borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 4,
   },
   reviewBtnDisabled: { backgroundColor: '#B8B2E8' },
@@ -560,23 +562,35 @@ const styles = StyleSheet.create({
   cancelNotice: { backgroundColor: '#FEE4E2', paddingHorizontal: 16, paddingVertical: 10 },
   cancelNoticeTitle: { color: '#B42318', fontSize: 12, fontWeight: '900' },
   cancelNoticeText: { color: '#B42318', fontSize: 12, lineHeight: 17, marginTop: 2 },
-  list: { paddingVertical: 12, paddingBottom: 8 },
-  emptyChat: { alignItems: 'center', paddingTop: 60 },
-  emptyChatText: { fontSize: 14, color: '#AAA' },
+  list: { paddingVertical: 12, paddingBottom: 8, width: '100%', maxWidth: 920, alignSelf: 'center' },
+  emptyChat: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 48,
+    paddingVertical: 28,
+  },
+  emptyChatIcon: { fontSize: 30, marginBottom: 8 },
+  emptyChatText: { fontSize: 14, fontWeight: '700' },
   typingIndicator: { paddingHorizontal: 16, paddingVertical: 6 },
   typingText: { fontSize: 12, color: '#E07B2C', fontStyle: 'italic' },
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end',
     paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: 1, gap: 8,
+    width: '100%', maxWidth: 980, alignSelf: 'center',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.04, shadowRadius: 14, elevation: 4,
   },
   input: {
-    flex: 1, borderRadius: 22,
+    flex: 1, borderRadius: 16,
     paddingHorizontal: 16, paddingVertical: 10, fontSize: 15,
     maxHeight: 100, borderWidth: 1,
   },
   aiBtn: {
-    backgroundColor: '#FFF3DC', borderRadius: 20,
+    backgroundColor: '#FFF3DC', borderRadius: 14,
     paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1.5, borderColor: '#F5A623',
   },
@@ -584,14 +598,14 @@ const styles = StyleSheet.create({
   aiBtnText: { fontSize: 13, fontWeight: '700', color: '#E07B2C' },
   photoBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#F0EEFF', justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#DCD6FF',
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#C7D2FE',
   },
   photoBtnText: { fontSize: 18 },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#5B4FCF', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center',
   },
-  sendBtnDisabled: { backgroundColor: '#D0CAFF' },
+  sendBtnDisabled: { backgroundColor: '#C7D2FE' },
   sendBtnText: { fontSize: 18, color: '#FFF', fontWeight: '700' },
 });

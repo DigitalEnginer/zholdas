@@ -329,7 +329,7 @@ export default function UserProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           <View style={[styles.avatar, { backgroundColor: theme.accentLight, borderColor: theme.accent }]}>
             <AvatarImage
@@ -466,7 +466,8 @@ export default function UserProfileScreen() {
         <View style={[styles.section, { backgroundColor: theme.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Отзывы</Text>
           {reviews.length === 0 ? (
-            <View style={styles.emptyReviews}>
+            <View style={[styles.emptyReviews, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <Text style={styles.emptyReviewsIcon}>★</Text>
               <Text style={[styles.emptyReviewsText, { color: theme.subtext }]}>Отзывов пока нет</Text>
             </View>
           ) : (
@@ -495,6 +496,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  content: { width: '100%', maxWidth: 860, alignSelf: 'center', paddingBottom: 40 },
   hero: { alignItems: 'center', paddingVertical: 32 },
   avatar: {
     width: 90, height: 90, borderRadius: 45,
@@ -539,20 +541,22 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', marginHorizontal: 16, marginBottom: 12,
     borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
   },
   stat: { flex: 1, alignItems: 'center', paddingVertical: 16 },
   statVal: { fontSize: 22, fontWeight: '800' },
   statLabel: { fontSize: 11, marginTop: 2 },
   section: {
     marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
   },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
   },
   eventRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -571,6 +575,15 @@ const styles = StyleSheet.create({
   reviewFrom: { fontSize: 14, fontWeight: '700' },
   reviewStars: { fontSize: 12, color: '#F5A623' },
   reviewText: { fontSize: 13, lineHeight: 18 },
-  emptyReviews: { padding: 16 },
-  emptyReviewsText: { fontSize: 14 },
+  emptyReviews: {
+    margin: 16,
+    marginTop: 8,
+    padding: 18,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  emptyReviewsIcon: { fontSize: 24, color: '#98A2B3', marginBottom: 8 },
+  emptyReviewsText: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

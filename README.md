@@ -99,6 +99,8 @@ OPENAI_API_KEY=your_openai_api_key_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+BACKEND_CORS_ORIGINS=http://localhost:8081,http://localhost:19006,https://your-vercel-domain.vercel.app
+BACKEND_CORS_ORIGIN_REGEX=https://.*\.vercel\.app
 ```
 
 Install and start:
@@ -224,6 +226,8 @@ After updating admin features, rerun `supabase_admin_panel.sql` in Supabase SQL 
 - Do not commit `.env` or `backend/.env`.
 - `EXPO_PUBLIC_*` values are public in the app bundle. Never put service role or OpenAI keys there.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` only on the backend/server.
+- Set `BACKEND_CORS_ORIGINS` on Render to the exact frontend origins that can call the backend, for example `https://zholdas.vercel.app`.
+- Keep `BACKEND_CORS_ORIGIN_REGEX=https://.*\.vercel\.app` only if you want Vercel preview deployments to call the backend.
 
 ## Verification
 

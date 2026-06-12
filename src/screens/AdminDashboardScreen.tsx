@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -118,6 +118,8 @@ export default function AdminDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 920;
   const [activeTab, setActiveTab] = React.useState<AdminTab>('overview');
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -274,7 +276,7 @@ export default function AdminDashboardScreen() {
       { label: 'Ивенты 30 дней', value: events30, tone: '#2E9E5D' },
       { label: 'Сообщ. 7 дней', value: messages7, tone: '#E07B2C' },
       { label: 'Вступления 7 дней', value: joins7, tone: '#D92D20' },
-      { label: 'Активные 7 дней', value: activeIds.size, tone: '#1A1A2E' },
+      { label: 'Активные 7 дней', value: activeIds.size, tone: '#111827' },
     ]);
 
     const nextEvents = ((eventsData ?? []) as any[]).map(event => ({
@@ -616,7 +618,7 @@ export default function AdminDashboardScreen() {
             <TouchableOpacity style={[styles.quickBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('ModeratorDashboard')}>
               <Text style={styles.quickBtnText}>Модерация</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: '#1A1A2E' }]} onPress={() => navigation.navigate('AdminRoles')}>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: '#111827' }]} onPress={() => navigation.navigate('AdminRoles')}>
               <Text style={styles.quickBtnText}>Роли</Text>
             </TouchableOpacity>
           </View>
@@ -648,7 +650,7 @@ export default function AdminDashboardScreen() {
           <>
             <View style={styles.statsGrid}>
               {stats.map(stat => (
-                <View key={stat.label} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View key={stat.label} style={[styles.statCard, isWide && styles.statCardWide, { backgroundColor: theme.card, borderColor: theme.border }]}>
                   <Text style={[styles.statValue, { color: stat.tone }]}>{stat.value}</Text>
                   <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
                 </View>
@@ -658,7 +660,7 @@ export default function AdminDashboardScreen() {
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>MVP аналитика</Text>
               <View style={styles.statsGridInner}>
                 {analytics.map(stat => (
-                  <View key={stat.label} style={[styles.statCardSmall, { borderColor: theme.border }]}>
+                  <View key={stat.label} style={[styles.statCardSmall, isWide && styles.statCardSmallWide, { borderColor: theme.border }]}>
                     <Text style={[styles.statValueSmall, { color: stat.tone }]}>{stat.value}</Text>
                     <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
                   </View>
@@ -784,7 +786,12 @@ export default function AdminDashboardScreen() {
                 </View>
               );
             })}
-            {filteredProfiles.length === 0 ? <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text> : null}
+            {filteredProfiles.length === 0 ? (
+              <View style={[styles.emptyPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                <Text style={styles.emptyIcon}>⌕</Text>
+                <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text>
+              </View>
+            ) : null}
           </View>
         )}
 
@@ -852,12 +859,18 @@ export default function AdminDashboardScreen() {
                 </View>
               </View>
             ))}
+            {filteredEvents.length === 0 ? (
+              <View style={[styles.emptyPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                <Text style={styles.emptyIcon}>⌕</Text>
+                <Text style={[styles.emptyText, { color: theme.subtext }]}>Ивенты не найдены</Text>
+              </View>
+            ) : null}
           </View>
         )}
 
         {activeTab === 'chats' && (
-          <View style={styles.chatLayout}>
-            <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.chatLayout, isWide && styles.chatLayoutWide]}>
+            <View style={[styles.section, isWide && styles.chatListPane, { backgroundColor: theme.card }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Все чаты</Text>
               {filteredEvents.map(event => (
                 <TouchableOpacity
@@ -875,12 +888,15 @@ export default function AdminDashboardScreen() {
               ))}
             </View>
 
-            <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.chatMessagesPane, { backgroundColor: theme.card }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>
                 {selectedEvent ? `Чат: ${selectedEvent.title}` : 'Чат'}
               </Text>
               {messages.length === 0 ? (
-                <Text style={[styles.emptyText, { color: theme.subtext }]}>Сообщений нет или нет доступа по RLS.</Text>
+                <View style={[styles.emptyPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                  <Text style={styles.emptyIcon}>💬</Text>
+                  <Text style={[styles.emptyText, { color: theme.subtext }]}>Сообщений нет или нет доступа по RLS.</Text>
+                </View>
               ) : (
                 messages.map(message => (
                   <View key={message.id} style={[styles.messageRow, { borderTopColor: theme.border }]}>
@@ -907,7 +923,10 @@ export default function AdminDashboardScreen() {
           <View style={[styles.section, { backgroundColor: theme.card }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>История действий админов</Text>
             {auditLogs.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>Логов пока нет</Text>
+              <View style={[styles.emptyPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                <Text style={styles.emptyIcon}>↺</Text>
+                <Text style={[styles.emptyText, { color: theme.subtext }]}>Логов пока нет</Text>
+              </View>
             ) : (
               auditLogs.map(log => {
                 const actor = log.actor_id ? profileById[log.actor_id] : null;
@@ -927,8 +946,8 @@ export default function AdminDashboardScreen() {
         )}
 
         {activeTab === 'tools' && (
-          <>
-            <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.toolsLayout, isWide && styles.toolsLayoutWide]}>
+            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Broadcast всем пользователям</Text>
               <TextInput
                 style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
@@ -950,7 +969,7 @@ export default function AdminDashboardScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Системные настройки</Text>
               {settings.map(setting => (
                 <View key={setting.key} style={[styles.eventCard, { borderTopColor: theme.border }]}>
@@ -971,7 +990,7 @@ export default function AdminDashboardScreen() {
                 </View>
               ))}
             </View>
-          </>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -980,26 +999,37 @@ export default function AdminDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36 },
+  content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 1180, alignSelf: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  hero: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 },
+  hero: {
+    borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12,
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05, shadowRadius: 18, elevation: 2,
+  },
   heroTitle: { fontSize: 22, fontWeight: '900' },
   heroText: { fontSize: 13, lineHeight: 18, marginTop: 6 },
   quickActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
   quickBtn: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   quickBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
   tab: { minWidth: '31%', flexGrow: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   tabText: { fontSize: 13, fontWeight: '800' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
   statsGridInner: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16 },
-  statCardSmall: { width: '48%', borderWidth: 1, borderRadius: 14, padding: 12 },
+  statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16, shadowColor: '#101828', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 14, elevation: 1 },
+  statCardWide: { width: '32%' },
+  statCardSmall: { width: '48%', borderWidth: 1, borderRadius: 14, padding: 12, shadowColor: '#101828', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 },
+  statCardSmallWide: { width: '23.5%' },
   statValue: { fontSize: 28, fontWeight: '900' },
   statValueSmall: { fontSize: 22, fontWeight: '900' },
   statLabel: { fontSize: 12, marginTop: 4 },
-  section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
-  sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, padding: 16, paddingBottom: 8 },
+  section: {
+    borderRadius: 16, overflow: 'hidden', marginBottom: 12,
+    borderWidth: 1, borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05, shadowRadius: 16, elevation: 2,
+  },
+  sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', padding: 16, paddingBottom: 8 },
   searchInput: {
     borderWidth: 1,
     borderRadius: 14,
@@ -1047,11 +1077,27 @@ const styles = StyleSheet.create({
   smallBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
   smallBtnText: { fontSize: 12, fontWeight: '800' },
   chatLayout: { gap: 0 },
+  chatLayoutWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  chatListPane: { width: 360 },
+  chatMessagesPane: { flex: 1 },
+  toolsLayout: { gap: 0 },
+  toolsLayoutWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  toolsPane: { flex: 1 },
   chatEventRow: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
   messageRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 16, borderTopWidth: 1 },
   messageBody: { flex: 1 },
   messageAuthor: { fontSize: 13, fontWeight: '900' },
   messageText: { fontSize: 13, lineHeight: 18, marginTop: 4 },
   emptyTitle: { fontSize: 18, fontWeight: '900', marginBottom: 6 },
-  emptyText: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingBottom: 16, textAlign: 'center' },
+  emptyPanel: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    margin: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 22,
+    alignItems: 'center',
+  },
+  emptyIcon: { fontSize: 26, marginBottom: 8, color: '#98A2B3' },
+  emptyText: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
 });

@@ -75,7 +75,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.avatarSection}>
           <AvatarImage
             value={avatarValue}
@@ -160,6 +160,7 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingBottom: 40 },
   avatarSection: { alignItems: 'center', paddingVertical: 28 },
   photoAvatarBtn: {
     borderRadius: 18,
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
   form: { paddingHorizontal: 16 },
   label: {
     fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
-    letterSpacing: 0.8, marginTop: 20, marginBottom: 8,
+    marginTop: 20, marginBottom: 8,
   },
   input: {
     borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13,
@@ -189,9 +190,9 @@ const styles = StyleSheet.create({
   },
   bioInput: { minHeight: 90, textAlignVertical: 'top' },
   saveBtn: {
-    margin: 16, marginTop: 28, backgroundColor: '#5B4FCF',
-    borderRadius: 16, paddingVertical: 16, alignItems: 'center',
+    margin: 16, marginTop: 28, backgroundColor: '#4F46E5',
+    borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
-  saveBtnDisabled: { backgroundColor: '#C5BFFF' },
+  saveBtnDisabled: { backgroundColor: '#C7D2FE' },
   saveBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });

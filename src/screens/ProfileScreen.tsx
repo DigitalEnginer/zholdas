@@ -119,7 +119,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           <TouchableOpacity
             style={[styles.avatar, { backgroundColor: theme.accentLight, borderColor: theme.accent }]}
@@ -175,7 +175,8 @@ export default function ProfileScreen() {
         >
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Мои ивенты</Text>
           {myEvents.length === 0 ? (
-            <View style={styles.emptyEvents}>
+            <View style={[styles.emptyEvents, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <Text style={styles.emptyEventsIcon}>✨</Text>
               <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>Ты пока не присоединился ни к одному ивенту</Text>
             </View>
           ) : (
@@ -207,7 +208,8 @@ export default function ProfileScreen() {
         >
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Отзывы</Text>
           {profileReviews.length === 0 ? (
-            <View style={styles.emptyEvents}>
+            <View style={[styles.emptyEvents, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <Text style={styles.emptyEventsIcon}>★</Text>
               <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>Отзывов пока нет</Text>
             </View>
           ) : (
@@ -261,6 +263,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  content: { width: '100%', maxWidth: 860, alignSelf: 'center', paddingBottom: 40 },
   hero: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 16 },
   avatar: {
     width: 90, height: 90, borderRadius: 45,
@@ -290,8 +293,10 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', marginHorizontal: 16, marginBottom: 16,
     borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
   },
   statItem: { flex: 1, alignItems: 'center', paddingVertical: 18 },
   statValue: { fontSize: 22, fontWeight: '800' },
@@ -299,16 +304,28 @@ const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16, marginBottom: 12,
     borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#5B4FCF', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
   },
   sectionTitle: {
     fontSize: 13, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8,
+    textTransform: 'uppercase',
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
   },
-  emptyEvents: { paddingHorizontal: 16, paddingBottom: 16 },
-  emptyEventsText: { fontSize: 13, textAlign: 'center' },
+  emptyEvents: {
+    margin: 16,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  emptyEventsIcon: { fontSize: 24, color: '#98A2B3', marginBottom: 8 },
+  emptyEventsText: { fontSize: 13, textAlign: 'center', fontWeight: '700' },
   eventRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1,
