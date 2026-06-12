@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
+import { configureNotifications, scheduleEventReminder } from '../lib/notifications';
 import { Event, EventCategory } from '../types';
 import { useAuth } from './AuthContext';
 
@@ -17,28 +17,7 @@ interface EventsContextType {
 
 const EventsContext = createContext<EventsContextType>({} as EventsContextType);
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
-async function scheduleEventReminder(event: Event) {
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') return;
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: '🔔 Скоро ивент!',
-      body: `Через час начинается "${event.title}"`,
-      sound: true,
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5 },
-  });
-}
+configureNotifications();
 
 function transformEvent(e: any): Event {
   const participants = e.event_participants ?? [];

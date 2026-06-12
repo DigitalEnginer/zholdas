@@ -1,0 +1,22 @@
+{
+  "short_name": "Жолдас",
+  "name": "Жолдас",
+  "start_url": ".",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#5B4FCF",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/logo192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

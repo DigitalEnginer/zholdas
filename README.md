@@ -49,6 +49,47 @@ For Expo Go on a physical phone, `EXPO_PUBLIC_BACKEND_URL` must point to an addr
 EXPO_PUBLIC_BACKEND_URL=http://192.168.1.10:8000
 ```
 
+## PWA / Web Setup
+
+The web version is intended for early public testing through a single browser link. It keeps native Android/iOS map code intact and uses Leaflet/OpenStreetMap on web.
+
+Run locally in development mode:
+
+```bash
+npm run web
+```
+
+Create a production web bundle:
+
+```bash
+npm run build:web
+```
+
+Preview the production bundle:
+
+```bash
+npm run serve:web
+```
+
+Deploy to Vercel by connecting the GitHub repository or running:
+
+```bash
+npm install --global vercel
+vercel
+```
+
+Set these environment variables in Vercel:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+EXPO_PUBLIC_BACKEND_URL=https://your-public-backend-url
+```
+
+For a public PWA, `EXPO_PUBLIC_BACKEND_URL` cannot be `localhost`. Deploy the FastAPI backend or temporarily disable AI chat until a public backend URL exists.
+
+See `PWA_DEPLOY.md` for the deployment checklist.
+
 ## Backend Setup
 
 Create `backend/.env`:
