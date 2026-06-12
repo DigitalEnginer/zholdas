@@ -393,6 +393,9 @@ def admin_delete_user(target_user_id: str, authorization: str | None = Header(de
         },
     )
 
+    if target_profiles and target_profiles[0].get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Admins cannot delete another admin account")
+
     cleanup_user_data(target_user_id)
     delete_auth_user(target_user_id)
 

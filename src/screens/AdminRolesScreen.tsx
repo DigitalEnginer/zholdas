@@ -48,7 +48,16 @@ export default function AdminRolesScreen() {
     setLoading(false);
   }
 
+  function isProtectedPeerAdmin(profile: ProfileRow) {
+    return profile.role === 'admin' && profile.id !== user?.id;
+  }
+
   async function setRole(profile: ProfileRow, role: AppRole) {
+    if (isProtectedPeerAdmin(profile)) {
+      Alert.alert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
+      return;
+    }
+
     if (profile.id === user?.id && role !== 'admin') {
       Alert.alert('Нельзя снять admin с себя', 'Назначьте другого администратора и измените роль через Supabase.');
       return;
@@ -90,13 +99,21 @@ export default function AdminRolesScreen() {
             <View style={styles.info}>
               <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
               <Text style={[styles.email, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
+              {isProtectedPeerAdmin(profile) ? (
+                <Text style={[styles.protectedText, { color: '#E07B2C' }]}>Другой admin защищен от изменения роли</Text>
+              ) : null}
               <View style={styles.roles}>
                 {ROLES.map(role => (
                   <TouchableOpacity
                     key={role}
+                    disabled={isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin')}
                     style={[
                       styles.roleBtn,
-                      { borderColor: profile.role === role ? theme.accent : theme.border, backgroundColor: profile.role === role ? theme.accentLight : 'transparent' },
+                      {
+                        borderColor: profile.role === role ? theme.accent : theme.border,
+                        backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
+                        opacity: isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
+                      },
                     ]}
                     onPress={() => setRole(profile, role)}
                   >
@@ -121,6 +138,7 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '800' },
   email: { fontSize: 12, marginTop: 3 },
+  protectedText: { fontSize: 12, marginTop: 6, fontWeight: '700' },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   roleBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
   roleText: { fontSize: 12, fontWeight: '800' },

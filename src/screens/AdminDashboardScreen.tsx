@@ -238,7 +238,20 @@ export default function AdminDashboardScreen() {
     setMessages(prev => prev.filter(item => item.id !== message.id));
   }
 
+  function isProtectedPeerAdmin(profile: AdminProfile) {
+    return profile.role === 'admin' && profile.id !== user?.id;
+  }
+
+  function canManageProfile(profile: AdminProfile) {
+    return profile.id !== user?.id && !isProtectedPeerAdmin(profile);
+  }
+
   async function setUserRole(profile: AdminProfile, role: AppRole) {
+    if (isProtectedPeerAdmin(profile)) {
+      Alert.alert('Нельзя менять другого admin', 'У второго админа такой же уровень защиты. Роль admin меняем только вручную через Supabase.');
+      return;
+    }
+
     if (profile.id === user?.id && role !== 'admin') {
       Alert.alert('Нельзя снять admin с себя', 'Сначала назначьте другого super-admin.');
       return;
@@ -255,6 +268,10 @@ export default function AdminDashboardScreen() {
 
   async function banUser(profile: AdminProfile) {
     if (!user || profile.id === user.id) return;
+    if (isProtectedPeerAdmin(profile)) {
+      Alert.alert('Нельзя банить другого admin', 'Для изменения доступа второго админа используйте Supabase вручную.');
+      return;
+    }
 
     const { error } = await supabase.from('user_bans').insert({
       user_id: profile.id,
@@ -271,6 +288,11 @@ export default function AdminDashboardScreen() {
   }
 
   async function unbanUser(profile: AdminProfile) {
+    if (isProtectedPeerAdmin(profile)) {
+      Alert.alert('Нельзя менять другого admin', 'Для изменения доступа второго админа используйте Supabase вручную.');
+      return;
+    }
+
     const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
     if (error) {
       Alert.alert('Не удалось разбанить', error.message);
@@ -283,6 +305,11 @@ export default function AdminDashboardScreen() {
   function hardDeleteUser(profile: AdminProfile) {
     if (profile.id === user?.id) {
       Alert.alert('Нельзя удалить себя', 'Это защита от случайной потери админ-доступа.');
+      return;
+    }
+
+    if (isProtectedPeerAdmin(profile)) {
+      Alert.alert('Нельзя удалить другого admin', 'Admin-аккаунты удаляем только вручную через Supabase, чтобы один админ не мог снести второго.');
       return;
     }
 
@@ -410,7 +437,11 @@ export default function AdminDashboardScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {filteredProfiles.map(profile => (
+            {filteredProfiles.map(profile => {
+              const protectedPeerAdmin = isProtectedPeerAdmin(profile);
+              const manageable = canManageProfile(profile);
+
+              return (
               <View key={profile.id} style={[styles.userCard, { borderTopColor: theme.border }]}>
                 <View style={styles.rowBetween}>
                   <View style={styles.eventInfo}>
@@ -421,6 +452,9 @@ export default function AdminDashboardScreen() {
                     </Text>
                     {profile.ban_reason ? (
                       <Text style={[styles.itemMeta, { color: '#D92D20' }]}>{profile.ban_reason}</Text>
+                    ) : null}
+                    {protectedPeerAdmin ? (
+                      <Text style={[styles.itemMeta, { color: '#E07B2C' }]}>Защищенный admin: другой admin не может менять этот аккаунт</Text>
                     ) : null}
                   </View>
                   <TouchableOpacity
@@ -435,11 +469,13 @@ export default function AdminDashboardScreen() {
                   {ROLES.map(role => (
                     <TouchableOpacity
                       key={role}
+                      disabled={protectedPeerAdmin || (profile.id === user?.id && role !== 'admin')}
                       style={[
                         styles.roleBtn,
                         {
                           borderColor: profile.role === role ? theme.accent : theme.border,
                           backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
+                          opacity: protectedPeerAdmin || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
                         },
                       ]}
                       onPress={() => setUserRole(profile, role)}
@@ -451,28 +487,33 @@ export default function AdminDashboardScreen() {
 
                 <View style={styles.actions}>
                   {profile.is_banned ? (
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#2E9E5D' }]} onPress={() => unbanUser(profile)}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: manageable ? '#2E9E5D' : theme.subtext }]}
+                      onPress={() => unbanUser(profile)}
+                      disabled={!manageable}
+                    >
                       <Text style={styles.actionText}>Разбанить</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: profile.id === user?.id ? theme.subtext : '#E07B2C' }]}
+                      style={[styles.actionBtn, { backgroundColor: manageable ? '#E07B2C' : theme.subtext }]}
                       onPress={() => banUser(profile)}
-                      disabled={profile.id === user?.id}
+                      disabled={!manageable}
                     >
                       <Text style={styles.actionText}>Бан</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: profile.id === user?.id ? theme.subtext : '#D92D20' }]}
+                    style={[styles.actionBtn, { backgroundColor: manageable ? '#D92D20' : theme.subtext }]}
                     onPress={() => hardDeleteUser(profile)}
-                    disabled={profile.id === user?.id}
+                    disabled={!manageable}
                   >
                     <Text style={styles.actionText}>Удалить навсегда</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            ))}
+            );
+            })}
             {filteredProfiles.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text>
             ) : null}

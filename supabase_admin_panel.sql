@@ -29,6 +29,54 @@ as $$
   )
 $$;
 
+create or replace function public.can_moderate_user(p_target_user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    p_target_user_id <> (select auth.uid())
+    and (
+      (
+        public.is_admin()
+        and coalesce(public.user_role(p_target_user_id), 'user'::public.app_role) <> 'admin'::public.app_role
+      )
+      or (
+        public.is_moderator_or_admin()
+        and coalesce(public.user_role(p_target_user_id), 'user'::public.app_role) = 'user'::public.app_role
+      )
+    )
+$$;
+
+create or replace function public.prevent_admin_peer_profile_changes()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.id <> (select auth.uid()) and old.role = 'admin'::public.app_role then
+    if old.role is distinct from new.role
+      or old.is_banned is distinct from new.is_banned
+      or old.banned_at is distinct from new.banned_at
+      or old.banned_by is distinct from new.banned_by
+      or old.ban_reason is distinct from new.ban_reason then
+      raise exception 'Admins cannot change other admins';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_admin_peer_guard on public.profiles;
+
+create trigger profiles_admin_peer_guard
+before update on public.profiles
+for each row
+execute function public.prevent_admin_peer_profile_changes();
+
 drop policy if exists super_admin_emails_select_super_admin on public.super_admin_emails;
 
 create policy super_admin_emails_select_super_admin
