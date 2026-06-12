@@ -18,7 +18,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 const ALMATY_CENTER: [number, number] = [43.238, 76.945];
 
 const MAP_FILTERS: Array<{ key: 'all' | EventCategory; label: string; emoji: string }> = [
-  { key: 'all', label: 'Все', emoji: '🌟' },
+  { key: 'all', label: 'Все', emoji: '•' },
   { key: 'mountains', label: 'Горы', emoji: '⛰️' },
   { key: 'theatre', label: 'Театр', emoji: '🎭' },
   { key: 'restaurant', label: 'Ресторан', emoji: '🍽️' },
@@ -31,17 +31,30 @@ function eventIcon(event: Event, joined: boolean) {
     className: '',
     html: `
       <div style="
-        width: 42px; height: 42px; border-radius: 21px;
-        background: ${joined ? '#5B4FCF' : '#ffffff'};
-        border: 3px solid #5B4FCF;
-        box-shadow: 0 8px 20px rgba(26, 26, 46, 0.2);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 20px;
-      ">${categoryEmojis[event.category]}</div>
+        width: 44px; height: 50px; position: relative;
+        display: flex; align-items: flex-start; justify-content: center;
+      ">
+        <div style="
+          width: 40px; height: 40px; border-radius: 20px 20px 20px 6px;
+          transform: rotate(-45deg);
+          background: ${joined ? '#5B4FCF' : '#ffffff'};
+          border: 3px solid #5B4FCF;
+          box-shadow: 0 10px 24px rgba(39, 32, 112, 0.22);
+          display: flex; align-items: center; justify-content: center;
+        ">
+          <span style="
+            transform: rotate(45deg);
+            display: block;
+            font-size: 18px;
+            line-height: 1;
+            filter: ${joined ? 'grayscale(0)' : 'none'};
+          ">${categoryEmojis[event.category]}</span>
+        </div>
+      </div>
     `,
-    iconSize: [42, 42],
-    iconAnchor: [21, 21],
-    popupAnchor: [0, -24],
+    iconSize: [44, 50],
+    iconAnchor: [22, 46],
+    popupAnchor: [0, -42],
   });
 }
 
@@ -86,8 +99,8 @@ export default function MapScreen() {
     <View style={styles.container}>
       <MapContainer center={ALMATY_CENTER} zoom={12} style={leafletMapStyle} zoomControl={false}>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
         {userLocation && (
           <CircleMarker
@@ -159,8 +172,10 @@ export default function MapScreen() {
       </MapContainer>
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🗺 Жолдас</Text>
-        <Text style={styles.headerSubtitle}>{filteredEvents.length} ивента в Алматы</Text>
+        <View>
+          <Text style={styles.headerTitle}>Жолдас</Text>
+          <Text style={styles.headerSubtitle}>{filteredEvents.length} ивента в Алматы</Text>
+        </View>
       </View>
 
       <View style={styles.filterBar}>
@@ -204,29 +219,38 @@ export default function MapScreen() {
 const leafletMapStyle: React.CSSProperties = { height: '100%', width: '100%' };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E8E5FF' },
+  container: { flex: 1, backgroundColor: '#EEF2F3' },
   header: {
-    position: 'absolute', top: 24, left: 16, right: 16,
-    backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 16, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 8,
+    position: 'absolute', top: 18, left: 16, right: 16,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: '#1A1A2E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
   },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E' },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: '#1A1A2E' },
   headerSubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
-  filterBar: { position: 'absolute', top: 116, left: 0, right: 0 },
+  filterBar: { position: 'absolute', top: 92, left: 0, right: 0 },
   filterScroll: { paddingHorizontal: 16, gap: 8 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderWidth: 1.5, borderColor: '#E8E5FF',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1, borderColor: 'rgba(91,79,207,0.14)',
+    shadowColor: '#1A1A2E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   filterChipActive: { backgroundColor: '#5B4FCF', borderColor: '#5B4FCF' },
-  filterEmoji: { fontSize: 13 },
+  filterEmoji: { fontSize: 14 },
   filterLabel: { fontSize: 12, color: '#555', fontWeight: '600' },
   filterLabelActive: { color: '#FFF' },
   routeBanner: {
-    position: 'absolute', top: 162, left: 16, right: 16,
+    position: 'absolute', top: 140, left: 16, right: 16,
     backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 16,
     paddingHorizontal: 14, paddingVertical: 12,
     flexDirection: 'row', alignItems: 'center', gap: 12,
