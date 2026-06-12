@@ -139,8 +139,15 @@ export default function AppNavigator() {
         headerShadowVisible: false,
         contentStyle: { backgroundColor: theme.bg },
       }}>
-        {showOnboarding && (
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
+        {showOnboarding && !user && (
+          <Stack.Screen name="Onboarding" options={{ headerShown: false }}>
+            {props => (
+              <OnboardingScreen
+                {...props}
+                onDone={() => setShowOnboarding(false)}
+              />
+            )}
+          </Stack.Screen>
         )}
         {!user ? (
           <>

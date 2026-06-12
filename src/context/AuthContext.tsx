@@ -98,7 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    setUser(null);
+    if (error) throw new Error(error.message);
   }
 
   async function updateUser(updates: Partial<User>) {

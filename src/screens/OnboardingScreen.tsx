@@ -11,6 +11,9 @@ import { RootStackParamList } from '../types';
 import { useHaptics } from '../hooks/useHaptics';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type Props = {
+  onDone?: () => void;
+};
 
 const { width } = Dimensions.get('window');
 
@@ -35,7 +38,7 @@ const SLIDES = [
   },
 ];
 
-export default function OnboardingScreen() {
+export default function OnboardingScreen({ onDone }: Props) {
   const navigation = useNavigation<Nav>();
   const haptics = useHaptics();
   const [current, setCurrent] = useState(0);
@@ -63,6 +66,7 @@ export default function OnboardingScreen() {
   async function finish() {
     haptics.success();
     await AsyncStorage.setItem('onboarding_done', 'true');
+    onDone?.();
     navigation.replace('Auth');
   }
 
@@ -150,6 +154,7 @@ const styles = StyleSheet.create({
   bottom: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingBottom: 52, paddingHorizontal: 24, alignItems: 'center',
+    zIndex: 10,
   },
   dots: { flexDirection: 'row', gap: 6, marginBottom: 28 },
   dot: { height: 8, borderRadius: 4, backgroundColor: '#FFF' },

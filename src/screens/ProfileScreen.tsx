@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, SafeAreaView, Alert,
+  TouchableOpacity, SafeAreaView, Alert, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -80,6 +80,14 @@ export default function ProfileScreen() {
   }
 
   function handleLogout() {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window === 'undefined'
+        ? true
+        : window.confirm('Выйти из профиля?');
+      if (confirmed) logout();
+      return;
+    }
+
     Alert.alert('Выйти?', 'Ваша сессия завершится', [
       { text: 'Отмена', style: 'cancel' },
       { text: 'Выйти', style: 'destructive', onPress: logout },
