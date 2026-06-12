@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { categoryEmojis } from '../data/mockEvents';
 import AvatarImage from '../components/AvatarImage';
 import { supabase } from '../lib/supabase';
+import { isSuperAdmin } from '../lib/adminAccess';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -234,6 +235,7 @@ export default function ProfileScreen() {
             { icon: '🔔', label: 'Уведомления', onPress: () => navigation.navigate('Notifications') },
             { icon: '👥', label: 'Друзья и заявки', onPress: () => navigation.navigate('Friends') },
             { icon: '✨', label: 'Создать ивент', onPress: () => navigation.navigate('CreateEvent') },
+            ...(isSuperAdmin(user) ? [{ icon: '🛡', label: 'Админ-панель', onPress: () => navigation.navigate('AdminDashboard') }] : []),
             ...(canModerate ? [{ icon: '!', label: 'Модерация', onPress: () => navigation.navigate('ModeratorDashboard') }] : []),
             ...(user.role === 'admin' ? [{ icon: '🔐', label: 'Управление ролями', onPress: () => navigation.navigate('AdminRoles') }] : []),
             { icon: '🌐', label: 'Язык: Русский', onPress: () => {} },

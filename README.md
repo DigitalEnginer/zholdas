@@ -127,7 +127,8 @@ Run these files in Supabase SQL Editor in this order:
 4. `supabase_event_status.sql`
 5. `supabase_reviews_hardening.sql`
 6. `supabase_content_guardrails.sql`
-7. `supabase_seed_demo.sql` optional demo data
+7. `supabase_admin_panel.sql`
+8. `supabase_seed_demo.sql` optional demo data
 
 Important: `supabase_final_product_layer.sql` contains stricter message insert rules. Run it after `SUPABASE_SERVICE_ROLE_KEY` is configured in `backend/.env`, because AI messages are saved by the backend service role.
 
@@ -166,6 +167,16 @@ where id = 'user-uuid-here';
 - Content violations are blocked, logged in `content_moderation_violations`, and reported to moderators.
 - Repeated violations can trigger an automatic system ban when the `user_bans.banned_by` column allows system/null moderation actions.
 - Backend AI chat is limited to event/chat topics and rate-limited per user.
+
+## Super Admin Panel
+
+The super admin panel is available only to an authenticated Supabase user with `profiles.role = 'admin'` and, when configured, matching:
+
+```env
+EXPO_PUBLIC_SUPER_ADMIN_EMAIL=admin@example.com
+```
+
+For database-level access to all chats, event deletion, and site stats, run `supabase_admin_panel.sql` after replacing `admin@example.com` with the real super admin email.
 
 ## Social Features
 

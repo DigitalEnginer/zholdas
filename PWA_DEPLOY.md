@@ -47,6 +47,7 @@ Environment variables:
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 EXPO_PUBLIC_BACKEND_URL=https://your-public-backend-url
+EXPO_PUBLIC_SUPER_ADMIN_EMAIL=admin@example.com
 ```
 
 ## Supabase Settings

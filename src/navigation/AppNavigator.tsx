@@ -18,6 +18,7 @@ import ActivityScreen from '../screens/ActivityScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import ModeratorDashboardScreen from '../screens/ModeratorDashboardScreen';
+import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import EventParticipantsScreen from '../screens/EventParticipantsScreen';
 import FriendsScreen from '../screens/FriendsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -166,6 +167,7 @@ export default function AppNavigator() {
             <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: '', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Редактировать', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="ModeratorDashboard" component={ModeratorDashboardScreen} options={{ title: 'Модерация', headerBackTitle: 'Назад' }} />
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Админ-панель', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="EventParticipants" component={EventParticipantsScreen} options={{ title: 'Участники', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: 'Друзья', headerBackTitle: 'Назад' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Уведомления', headerBackTitle: 'Назад' }} />
