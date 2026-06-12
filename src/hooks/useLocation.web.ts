@@ -53,8 +53,8 @@ export function getDistance(from: UserLocation, to: { latitude: number; longitud
 }
 
 export async function openRoute(to: { latitude: number; longitude: number }, label = 'Zholdas event') {
-  const destination = `${to.latitude},${to.longitude}`;
-  const encodedLabel = encodeURIComponent(label);
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&query=${encodedLabel}`;
+  const longitude = to.longitude.toFixed(6);
+  const latitude = to.latitude.toFixed(6);
+  const url = `https://2gis.kz/almaty/directions/points/%7C${longitude}%2C${latitude}%3B`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
