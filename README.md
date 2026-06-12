@@ -126,7 +126,8 @@ Run these files in Supabase SQL Editor in this order:
 3. `supabase_final_product_layer.sql`
 4. `supabase_event_status.sql`
 5. `supabase_reviews_hardening.sql`
-6. `supabase_seed_demo.sql` optional demo data
+6. `supabase_content_guardrails.sql`
+7. `supabase_seed_demo.sql` optional demo data
 
 Important: `supabase_final_product_layer.sql` contains stricter message insert rules. Run it after `SUPABASE_SERVICE_ROLE_KEY` is configured in `backend/.env`, because AI messages are saved by the backend service role.
 
@@ -161,6 +162,10 @@ where id = 'user-uuid-here';
 - Reports are visible in moderator dashboard.
 - Moderation actions are logged.
 - Banned account screen is shown on login.
+- Event titles/descriptions and chat messages are checked for profanity, spam links, illegal substances, sexual content, violence, and extremism.
+- Content violations are blocked, logged in `content_moderation_violations`, and reported to moderators.
+- Repeated violations can trigger an automatic system ban when the `user_bans.banned_by` column allows system/null moderation actions.
+- Backend AI chat is limited to event/chat topics and rate-limited per user.
 
 ## Social Features
 

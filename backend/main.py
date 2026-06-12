@@ -4,7 +4,9 @@ from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import re
 import requests
+import time
 
 load_dotenv()
 
@@ -34,11 +36,87 @@ app.add_middleware(
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+AI_RATE_WINDOW_SECONDS = 10 * 60
+AI_RATE_LIMIT = 8
+ai_rate_log: dict[str, list[float]] = {}
+
+OUT_OF_SCOPE_PATTERNS = [
+    r"\b(реши|решить)\s+(уравнен|пример|задач|матем)",
+    r"\b(уравнен|интеграл|производн|теорем|домашк|контрольн)\b",
+    r"\b(python|javascript|typescript|html|css|sql|код|программ)\b",
+    r"\b(essay|реферат|сочинен|переведи|translate)\b",
+    r"\d+\s*[\+\-\*\/\^=]\s*\d+",
+]
+
+EVENT_SCOPE_KEYWORDS = [
+    "ивент", "событие", "встреч", "чат", "участник", "группа", "организ",
+    "маршрут", "адрес", "место", "локац", "где", "когда", "во сколько",
+    "добраться", "ехать", "идти", "взять", "одеть", "погода", "алматы",
+    "созвон", "опозда", "правила", "план", "сбор", "стоимость",
+]
+
 
 class ChatRequest(BaseModel):
     message: str
     event_id: str | None = None
+    event_title: str | None = None
     user_name: str | None = None
+
+
+def ensure_ai_rate_limit(user_id: str):
+    now = time.time()
+    recent = [
+        timestamp
+        for timestamp in ai_rate_log.get(user_id, [])
+        if now - timestamp < AI_RATE_WINDOW_SECONDS
+    ]
+
+    if len(recent) >= AI_RATE_LIMIT:
+        retry_minutes = max(1, round((AI_RATE_WINDOW_SECONDS - (now - recent[0])) / 60))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Лимит AI: {AI_RATE_LIMIT} запросов за 10 минут. Попробуй через {retry_minutes} мин.",
+        )
+
+    recent.append(now)
+    ai_rate_log[user_id] = recent
+
+
+def normalize_text(value: str | None):
+    return re.sub(r"\s+", " ", value or "").strip().lower()
+
+
+def is_obviously_out_of_scope(message: str):
+    text = normalize_text(message)
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in OUT_OF_SCOPE_PATTERNS)
+
+
+def is_event_related(message: str, event_title: str | None, context_messages: list[dict]):
+    text = normalize_text(message)
+    title_words = [
+        word
+        for word in re.split(r"\W+", normalize_text(event_title))
+        if len(word) >= 4
+    ]
+
+    if any(keyword in text for keyword in EVENT_SCOPE_KEYWORDS):
+        return True
+
+    if any(word in text for word in title_words):
+        return True
+
+    if len(text) <= 80 and context_messages:
+        return not is_obviously_out_of_scope(text)
+
+    return False
+
+
+def ensure_ai_scope(message: str, event_title: str | None, context_messages: list[dict]):
+    if is_obviously_out_of_scope(message) or not is_event_related(message, event_title, context_messages):
+        raise HTTPException(
+            status_code=400,
+            detail="Жолдас AI отвечает только по теме этого ивента и его чата: место, время, маршрут, участники и организация.",
+        )
 
 
 def verify_supabase_token(authorization: str | None):
@@ -188,17 +266,28 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
 
     try:
         context_messages = load_recent_messages(request.event_id, token) if request.event_id else []
+        ensure_ai_scope(request.message, request.event_title, context_messages)
+        ensure_ai_rate_limit(user.get("id"))
         chat_messages = [
             {
                 "role": "system",
                 "content": (
                     "Ты AI-ассистент приложения Жолдас. "
-                    "Помогаешь пользователям находить компанию, события, маршруты, "
-                    "места и активности в Алматы. Отвечай коротко и полезно. "
-                    "Если в истории чата есть полезный контекст, учитывай его."
+                    "Отвечай только по теме текущего ивента и его чата: место, время, маршрут, "
+                    "участники, подготовка, правила и организация встречи. "
+                    "Если пользователь просит решить математику, написать код, сделать домашнее задание "
+                    "или спрашивает не по теме ивента, коротко откажи и верни разговор к ивенту. "
+                    "Не помогай обходить модерацию, оскорблять людей или организовывать опасные действия. "
+                    "Отвечай коротко и полезно."
                 ),
             },
         ]
+
+        if request.event_title:
+            chat_messages.append({
+                "role": "system",
+                "content": f"Название ивента: {request.event_title}",
+            })
 
         for message in context_messages:
             chat_messages.append({
@@ -214,6 +303,8 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=chat_messages,
+            temperature=0.4,
+            max_tokens=220,
         )
 
         reply = response.choices[0].message.content
@@ -225,5 +316,7 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
             "saved": saved,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

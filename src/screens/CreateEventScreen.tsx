@@ -14,6 +14,7 @@ import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { categoryEmojis, categoryLabels } from '../data/mockEvents';
 import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
+import { userMessageFromModerationError, validateEventContent } from '../lib/contentModeration';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
@@ -144,6 +145,8 @@ export default function CreateEventScreen() {
     if (!datetime.trim()) { Alert.alert('Ошибка', 'Укажите время'); return; }
     const max = parseInt(maxParticipants, 10);
     if (!max || max < 2) { Alert.alert('Ошибка', 'Минимум 2 участника'); return; }
+    const moderation = validateEventContent(title, description);
+    if (!moderation.ok) { Alert.alert('Модерация', moderation.message); return; }
 
     const minA = minAge ? parseInt(minAge, 10) : undefined;
     const maxA = maxAge ? parseInt(maxAge, 10) : undefined;
@@ -180,7 +183,7 @@ export default function CreateEventScreen() {
         { text: 'На карту', onPress: () => navigation.navigate('Main') },
       ]);
     } catch (e: any) {
-      Alert.alert('Ошибка', e.message ?? 'Не удалось создать ивент');
+      Alert.alert('Ошибка', userMessageFromModerationError(e.message) ?? 'Не удалось создать ивент');
     } finally {
       setLoading(false);
     }
