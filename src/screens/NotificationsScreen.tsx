@@ -77,6 +77,7 @@ export default function NotificationsScreen() {
       || item.type === 'event_finished'
       || item.type === 'event_cancelled'
       || item.type === 'chat_message'
+      || item.type === 'broadcast'
     ) {
       navigation.navigate('Main');
     }

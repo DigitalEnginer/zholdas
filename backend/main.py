@@ -7,6 +7,7 @@ import os
 import re
 import requests
 import time
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -39,6 +40,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 AI_RATE_WINDOW_SECONDS = 10 * 60
 AI_RATE_LIMIT = 8
 ai_rate_log: dict[str, list[float]] = {}
+USER_STORAGE_BUCKETS = ("profile-photos", "event-photos", "chat-photos")
 
 OUT_OF_SCOPE_PATTERNS = [
     r"\b(реши|решить)\s+(уравнен|пример|задач|матем)",
@@ -63,19 +65,26 @@ class ChatRequest(BaseModel):
     user_name: str | None = None
 
 
+def parse_bool(value: str | None, default: bool = False):
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
 def ensure_ai_rate_limit(user_id: str):
     now = time.time()
+    limit = get_system_setting_int("ai_rate_limit_per_10m", AI_RATE_LIMIT)
     recent = [
         timestamp
         for timestamp in ai_rate_log.get(user_id, [])
         if now - timestamp < AI_RATE_WINDOW_SECONDS
     ]
 
-    if len(recent) >= AI_RATE_LIMIT:
+    if len(recent) >= limit:
         retry_minutes = max(1, round((AI_RATE_WINDOW_SECONDS - (now - recent[0])) / 60))
         raise HTTPException(
             status_code=429,
-            detail=f"Лимит AI: {AI_RATE_LIMIT} запросов за 10 минут. Попробуй через {retry_minutes} мин.",
+            detail=f"Лимит AI: {limit} запросов за 10 минут. Попробуй через {retry_minutes} мин.",
         )
 
     recent.append(now)
@@ -164,6 +173,53 @@ def fetch_service_rows(table: str, params: dict):
     return response.json()
 
 
+def insert_service_row(table: str, payload: dict):
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers={
+            **service_role_headers(),
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json=payload,
+        timeout=10,
+    )
+
+    if response.status_code not in (200, 201, 204):
+        raise HTTPException(status_code=500, detail=f"Could not insert into {table}: {response.text}")
+
+
+def get_system_setting(key: str, default: str | None = None):
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        return default
+
+    try:
+        rows = fetch_service_rows(
+            "system_settings",
+            {
+                "key": f"eq.{key}",
+                "select": "value",
+                "limit": "1",
+            },
+        )
+    except HTTPException:
+        return default
+
+    return rows[0].get("value") if rows else default
+
+
+def get_system_setting_int(key: str, default: int):
+    try:
+        return max(1, int(get_system_setting(key, str(default)) or default))
+    except ValueError:
+        return default
+
+
+def ensure_ai_is_enabled():
+    if not parse_bool(get_system_setting("ai_enabled", "true"), True):
+        raise HTTPException(status_code=403, detail="AI temporarily disabled by admin")
+
+
 def ensure_super_admin(user_id: str):
     profiles = fetch_service_rows(
         "profiles",
@@ -227,6 +283,55 @@ def delete_auth_user(user_id: str):
 
     if response.status_code not in (200, 204):
         raise HTTPException(status_code=500, detail=f"Could not delete auth user: {response.text}")
+
+
+def list_storage_objects(bucket: str, prefix: str):
+    response = requests.post(
+        f"{SUPABASE_URL}/storage/v1/object/list/{bucket}",
+        headers={
+            **service_role_headers(),
+            "Content-Type": "application/json",
+        },
+        json={
+            "prefix": prefix,
+            "limit": 1000,
+            "offset": 0,
+        },
+        timeout=15,
+    )
+
+    if response.status_code != 200:
+        return []
+
+    return response.json()
+
+
+def delete_storage_object(bucket: str, path: str):
+    response = requests.delete(
+        f"{SUPABASE_URL}/storage/v1/object/{bucket}/{quote(path, safe='/')}",
+        headers=service_role_headers(),
+        timeout=15,
+    )
+    return response.status_code in (200, 204, 404)
+
+
+def cleanup_user_storage(target_user_id: str):
+    deleted = 0
+    failed = 0
+
+    for bucket in USER_STORAGE_BUCKETS:
+        objects = list_storage_objects(bucket, target_user_id)
+        for item in objects:
+            name = item.get("name")
+            if not name:
+                continue
+            path = name if name.startswith(f"{target_user_id}/") else f"{target_user_id}/{name}"
+            if delete_storage_object(bucket, path):
+                deleted += 1
+            else:
+                failed += 1
+
+    return {"deleted": deleted, "failed": failed}
 
 
 def cleanup_user_data(target_user_id: str):
@@ -396,8 +501,20 @@ def admin_delete_user(target_user_id: str, authorization: str | None = Header(de
     if target_profiles and target_profiles[0].get("role") == "admin":
         raise HTTPException(status_code=400, detail="Admins cannot delete another admin account")
 
+    storage_result = cleanup_user_storage(target_user_id)
     cleanup_user_data(target_user_id)
     delete_auth_user(target_user_id)
+    insert_service_row("admin_audit_logs", {
+        "actor_id": admin_profile.get("id"),
+        "target_user_id": None,
+        "action": "user_hard_deleted",
+        "details": (
+            f"deleted_user_id:{target_user_id}\n"
+            f"deleted_email:{target_profiles[0].get('email') if target_profiles else ''}\n"
+            f"storage_deleted:{storage_result['deleted']}\n"
+            f"storage_failed:{storage_result['failed']}"
+        ),
+    })
 
     return {
         "deleted_user_id": target_user_id,
@@ -411,6 +528,7 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
     user = verify_supabase_token(authorization)
     token = authorization.replace("Bearer ", "") if authorization else ""
     ensure_user_is_not_banned(user.get("id"), token)
+    ensure_ai_is_enabled()
     if request.event_id:
         ensure_event_participant(request.event_id, user.get("id"), token)
 

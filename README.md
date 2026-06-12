@@ -180,6 +180,17 @@ For database-level access to all chats, event deletion, and site stats, run `sup
 
 The super admin user tools can change roles, ban/unban users, and hard-delete test or spam accounts. Hard delete calls the backend `/admin/users/:id` endpoint and requires `SUPABASE_SERVICE_ROLE_KEY` on the backend host, because deleting Supabase Auth users must never happen from the public frontend.
 
+The super admin panel also includes:
+
+- admin audit logs for role changes, bans, event/message deletion, broadcast, settings changes, and hard deletes;
+- user detail drill-down with recent created events, messages, reports, and reviews;
+- event search and status filters;
+- MVP analytics for registrations, events, messages, joins, and active users across recent periods;
+- broadcast notifications to all active users;
+- system settings stored in `public.system_settings`, including AI enabled/disabled and AI rate limits.
+
+After updating admin features, rerun `supabase_admin_panel.sql` in Supabase SQL Editor. Hard delete also attempts best-effort cleanup of user-owned files in `profile-photos`, `event-photos`, and `chat-photos`.
+
 ## Social Features
 
 - Friend requests

@@ -12,10 +12,17 @@ import { supabase } from '../lib/supabase';
 import { getSuperAdminEmailRequirement, isSuperAdmin } from '../lib/adminAccess';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type AdminTab = 'overview' | 'users' | 'events' | 'chats';
+type AdminTab = 'overview' | 'users' | 'events' | 'chats' | 'history' | 'tools';
+type EventFilter = 'all' | EventStatus;
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 const ROLES: AppRole[] = ['user', 'moderator', 'admin'];
+const EVENT_FILTERS: { key: EventFilter; label: string }[] = [
+  { key: 'all', label: 'Все' },
+  { key: 'active', label: 'Активные' },
+  { key: 'finished', label: 'Закрытые' },
+  { key: 'cancelled', label: 'Отмененные' },
+];
 
 interface AdminEvent {
   id: string;
@@ -50,20 +57,61 @@ interface AdminProfile {
   friends_made: number | null;
 }
 
+interface AdminAuditLog {
+  id: string;
+  actor_id: string | null;
+  target_user_id: string | null;
+  target_event_id: string | null;
+  action: string;
+  details: string | null;
+  created_at: string;
+}
+
+interface SystemSetting {
+  key: string;
+  value: string;
+  description: string | null;
+  updated_at: string | null;
+}
+
 interface StatCard {
   label: string;
-  value: number;
+  value: number | string;
   tone: string;
 }
 
+interface UserDetails {
+  events: AdminEvent[];
+  messages: AdminMessage[];
+  reports: { id: string; reason: string; status: string; created_at: string }[];
+  reviews: { id: string; rating: number; comment: string | null; created_at: string }[];
+}
+
 function formatDate(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   return new Date(value).toLocaleString('ru-RU', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function daysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString();
+}
+
+function todayStart() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+function cleanDetails(value?: string | null) {
+  if (!value) return '';
+  return value.split('\n').slice(0, 3).join(' | ');
 }
 
 export default function AdminDashboardScreen() {
@@ -74,17 +122,40 @@ export default function AdminDashboardScreen() {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [stats, setStats] = React.useState<StatCard[]>([]);
+  const [analytics, setAnalytics] = React.useState<StatCard[]>([]);
   const [profiles, setProfiles] = React.useState<AdminProfile[]>([]);
   const [userSearch, setUserSearch] = React.useState('');
+  const [selectedProfile, setSelectedProfile] = React.useState<AdminProfile | null>(null);
+  const [userDetails, setUserDetails] = React.useState<UserDetails | null>(null);
+  const [userDetailsLoading, setUserDetailsLoading] = React.useState(false);
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
+  const [eventSearch, setEventSearch] = React.useState('');
+  const [eventFilter, setEventFilter] = React.useState<EventFilter>('all');
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState<AdminMessage[]>([]);
+  const [auditLogs, setAuditLogs] = React.useState<AdminAuditLog[]>([]);
+  const [settings, setSettings] = React.useState<SystemSetting[]>([]);
+  const [broadcastTitle, setBroadcastTitle] = React.useState('');
+  const [broadcastBody, setBroadcastBody] = React.useState('');
+  const [sendingBroadcast, setSendingBroadcast] = React.useState(false);
 
   const isAdmin = isSuperAdmin(user);
   const selectedEvent = events.find(event => event.id === selectedEventId) ?? null;
+  const profileById = React.useMemo(() => {
+    const map: Record<string, AdminProfile> = {};
+    profiles.forEach(profile => { map[profile.id] = profile; });
+    return map;
+  }, [profiles]);
+
   const filteredProfiles = profiles.filter(profile => {
     const haystack = `${profile.name} ${profile.email} ${profile.id}`.toLowerCase();
     return haystack.includes(userSearch.trim().toLowerCase());
+  });
+
+  const filteredEvents = events.filter(event => {
+    const matchesStatus = eventFilter === 'all' || event.status === eventFilter;
+    const matchesSearch = `${event.title} ${event.id}`.toLowerCase().includes(eventSearch.trim().toLowerCase());
+    return matchesStatus && matchesSearch;
   });
 
   React.useEffect(() => {
@@ -102,11 +173,28 @@ export default function AdminDashboardScreen() {
     return count ?? 0;
   }
 
+  async function logAdminAction(action: string, targetUserId?: string | null, targetEventId?: string | null, details?: string | null) {
+    try {
+      await supabase.rpc('log_admin_action', {
+        p_action: action,
+        p_target_user_id: targetUserId ?? null,
+        p_target_event_id: targetEventId ?? null,
+        p_details: details ?? null,
+      });
+    } catch {
+      // Audit logging is best-effort so moderation actions do not get stuck during SQL rollout.
+    }
+  }
+
   async function loadAdminData() {
     if (!isAdmin) {
       setLoading(false);
       return;
     }
+
+    const sinceToday = todayStart();
+    const since7 = daysAgo(7);
+    const since30 = daysAgo(30);
 
     const [
       usersCount,
@@ -115,8 +203,19 @@ export default function AdminDashboardScreen() {
       messagesCount,
       pendingReportsCount,
       bansCount,
+      usersToday,
+      users7,
+      users30,
+      events7,
+      events30,
+      messages7,
+      joins7,
+      { data: activeMessageRows },
+      { data: activeJoinRows },
       { data: eventsData },
       { data: profilesData },
+      { data: auditData },
+      { data: settingsData },
     ] = await Promise.all([
       countRows('profiles'),
       countRows('events'),
@@ -124,17 +223,39 @@ export default function AdminDashboardScreen() {
       countRows('messages'),
       countRows('reports', query => query.eq('status', 'pending')),
       countRows('user_bans'),
+      countRows('profiles', query => query.gte('created_at', sinceToday)),
+      countRows('profiles', query => query.gte('created_at', since7)),
+      countRows('profiles', query => query.gte('created_at', since30)),
+      countRows('events', query => query.gte('created_at', since7)),
+      countRows('events', query => query.gte('created_at', since30)),
+      countRows('messages', query => query.gte('created_at', since7)),
+      countRows('event_participants', query => query.gte('joined_at', since7)),
+      supabase.from('messages').select('user_id').gte('created_at', since7).neq('user_id', 'ai').limit(1000),
+      supabase.from('event_participants').select('user_id').gte('joined_at', since7).limit(1000),
       supabase
         .from('events')
         .select('id, title, status, created_by, created_at, datetime, participants_count')
         .order('created_at', { ascending: false })
-        .limit(80),
+        .limit(150),
       supabase
         .from('profiles')
         .select('id, name, email, avatar, role, is_banned, ban_reason, created_at, events_joined, friends_made')
         .order('created_at', { ascending: false })
-        .limit(150),
+        .limit(200),
+      supabase
+        .from('admin_audit_logs')
+        .select('id, actor_id, target_user_id, target_event_id, action, details, created_at')
+        .order('created_at', { ascending: false })
+        .limit(80),
+      supabase
+        .from('system_settings')
+        .select('key, value, description, updated_at')
+        .order('key', { ascending: true }),
     ]);
+
+    const activeIds = new Set<string>();
+    (activeMessageRows ?? []).forEach((row: any) => row.user_id && activeIds.add(row.user_id));
+    (activeJoinRows ?? []).forEach((row: any) => row.user_id && activeIds.add(row.user_id));
 
     setStats([
       { label: 'Юзеры', value: usersCount, tone: theme.accent },
@@ -143,6 +264,17 @@ export default function AdminDashboardScreen() {
       { label: 'Сообщения', value: messagesCount, tone: '#8B5CF6' },
       { label: 'Жалобы', value: pendingReportsCount, tone: '#D92D20' },
       { label: 'Баны', value: bansCount, tone: '#E07B2C' },
+    ]);
+
+    setAnalytics([
+      { label: 'Рег. сегодня', value: usersToday, tone: theme.accent },
+      { label: 'Рег. 7 дней', value: users7, tone: '#0EA5E9' },
+      { label: 'Рег. 30 дней', value: users30, tone: '#8B5CF6' },
+      { label: 'Ивенты 7 дней', value: events7, tone: '#2E9E5D' },
+      { label: 'Ивенты 30 дней', value: events30, tone: '#2E9E5D' },
+      { label: 'Сообщ. 7 дней', value: messages7, tone: '#E07B2C' },
+      { label: 'Вступления 7 дней', value: joins7, tone: '#D92D20' },
+      { label: 'Активные 7 дней', value: activeIds.size, tone: '#1A1A2E' },
     ]);
 
     const nextEvents = ((eventsData ?? []) as any[]).map(event => ({
@@ -155,8 +287,7 @@ export default function AdminDashboardScreen() {
       participants_count: event.participants_count,
     }));
 
-    setEvents(nextEvents);
-    setProfiles(((profilesData ?? []) as any[]).map(profile => ({
+    const nextProfiles = ((profilesData ?? []) as any[]).map(profile => ({
       id: profile.id,
       name: profile.name ?? 'Пользователь',
       email: profile.email ?? '',
@@ -167,7 +298,12 @@ export default function AdminDashboardScreen() {
       created_at: profile.created_at,
       events_joined: profile.events_joined ?? 0,
       friends_made: profile.friends_made ?? 0,
-    })));
+    }));
+
+    setEvents(nextEvents);
+    setProfiles(nextProfiles);
+    setAuditLogs((auditData ?? []) as AdminAuditLog[]);
+    setSettings((settingsData ?? []) as SystemSetting[]);
     setSelectedEventId(prev => prev ?? nextEvents[0]?.id ?? null);
     setLoading(false);
   }
@@ -176,6 +312,7 @@ export default function AdminDashboardScreen() {
     setRefreshing(true);
     await loadAdminData();
     if (selectedEventId) await loadEventMessages(selectedEventId);
+    if (selectedProfile) await loadProfileDetails(selectedProfile);
     setRefreshing(false);
   }
 
@@ -196,6 +333,54 @@ export default function AdminDashboardScreen() {
     setMessages((data ?? []) as AdminMessage[]);
   }
 
+  async function loadProfileDetails(profile: AdminProfile) {
+    setSelectedProfile(profile);
+    setUserDetailsLoading(true);
+
+    const [{ data: profileEvents }, { data: profileMessages }, { data: profileReports }, { data: profileReviews }] = await Promise.all([
+      supabase
+        .from('events')
+        .select('id, title, status, created_by, created_at, datetime, participants_count')
+        .eq('created_by', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('messages')
+        .select('id, event_id, user_id, user_name, text, is_ai, created_at')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('reports')
+        .select('id, reason, status, created_at')
+        .or(`reporter_id.eq.${profile.id},reported_user_id.eq.${profile.id}`)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('reviews')
+        .select('id, rating, comment, created_at')
+        .or(`from_user_id.eq.${profile.id},to_user_id.eq.${profile.id}`)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]);
+
+    setUserDetails({
+      events: ((profileEvents ?? []) as any[]).map(event => ({
+        id: event.id,
+        title: event.title,
+        status: event.status ?? 'active',
+        created_by: event.created_by,
+        created_at: event.created_at,
+        datetime: event.datetime,
+        participants_count: event.participants_count,
+      })),
+      messages: (profileMessages ?? []) as AdminMessage[],
+      reports: (profileReports ?? []) as UserDetails['reports'],
+      reviews: (profileReviews ?? []) as UserDetails['reviews'],
+    });
+    setUserDetailsLoading(false);
+  }
+
   async function setEventStatus(event: AdminEvent, status: EventStatus) {
     const { error } = await supabase.rpc('set_event_status', {
       p_event_id: event.id,
@@ -208,6 +393,7 @@ export default function AdminDashboardScreen() {
       return;
     }
 
+    await logAdminAction('event_status_changed', null, event.id, `${event.status}->${status}: ${event.title}`);
     await loadAdminData();
   }
 
@@ -223,6 +409,7 @@ export default function AdminDashboardScreen() {
             Alert.alert('Не удалось удалить', error.message);
             return;
           }
+          await logAdminAction('event_deleted', event.created_by, event.id, event.title);
           await loadAdminData();
         },
       },
@@ -235,6 +422,7 @@ export default function AdminDashboardScreen() {
       Alert.alert('Не удалось удалить сообщение', error.message);
       return;
     }
+    await logAdminAction('message_deleted', message.user_id === 'ai' ? null : message.user_id, message.event_id, message.text?.slice(0, 250));
     setMessages(prev => prev.filter(item => item.id !== message.id));
   }
 
@@ -248,7 +436,7 @@ export default function AdminDashboardScreen() {
 
   async function setUserRole(profile: AdminProfile, role: AppRole) {
     if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя менять другого admin', 'У второго админа такой же уровень защиты. Роль admin меняем только вручную через Supabase.');
+      Alert.alert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
       return;
     }
 
@@ -263,15 +451,13 @@ export default function AdminDashboardScreen() {
       return;
     }
 
+    await logAdminAction('role_changed', profile.id, null, `${profile.email || profile.id}: ${profile.role}->${role}`);
     setProfiles(prev => prev.map(item => item.id === profile.id ? { ...item, role } : item));
+    await loadAdminData();
   }
 
   async function banUser(profile: AdminProfile) {
-    if (!user || profile.id === user.id) return;
-    if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя банить другого admin', 'Для изменения доступа второго админа используйте Supabase вручную.');
-      return;
-    }
+    if (!user || !canManageProfile(profile)) return;
 
     const { error } = await supabase.from('user_bans').insert({
       user_id: profile.id,
@@ -284,14 +470,12 @@ export default function AdminDashboardScreen() {
       return;
     }
 
+    await logAdminAction('user_banned', profile.id, null, profile.email || profile.name);
     await loadAdminData();
   }
 
   async function unbanUser(profile: AdminProfile) {
-    if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя менять другого admin', 'Для изменения доступа второго админа используйте Supabase вручную.');
-      return;
-    }
+    if (!canManageProfile(profile)) return;
 
     const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
     if (error) {
@@ -299,6 +483,7 @@ export default function AdminDashboardScreen() {
       return;
     }
 
+    await logAdminAction('user_unbanned', profile.id, null, profile.email || profile.name);
     await loadAdminData();
   }
 
@@ -309,13 +494,13 @@ export default function AdminDashboardScreen() {
     }
 
     if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя удалить другого admin', 'Admin-аккаунты удаляем только вручную через Supabase, чтобы один админ не мог снести второго.');
+      Alert.alert('Нельзя удалить другого admin', 'Admin-аккаунты удаляем только вручную через Supabase.');
       return;
     }
 
     Alert.alert(
       'Удалить пользователя навсегда?',
-      `${profile.email || profile.name}\n\nБудут удалены профиль, auth-аккаунт, сообщения, участия, жалобы, баны и созданные им ивенты.`,
+      `${profile.email || profile.name}\n\nБудут удалены профиль, auth-аккаунт, storage-файлы, сообщения, участия, жалобы, баны и созданные им ивенты.`,
       [
         { text: 'Отмена', style: 'cancel' },
         {
@@ -343,11 +528,54 @@ export default function AdminDashboardScreen() {
               return;
             }
 
+            setSelectedProfile(null);
+            setUserDetails(null);
             await loadAdminData();
           },
         },
       ],
     );
+  }
+
+  async function updateSetting(setting: SystemSetting, value: string) {
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ value })
+      .eq('key', setting.key);
+
+    if (error) {
+      Alert.alert('Не удалось сохранить настройку', error.message);
+      return;
+    }
+
+    await logAdminAction('setting_updated', null, null, `${setting.key}: ${setting.value}->${value}`);
+    setSettings(prev => prev.map(item => item.key === setting.key ? { ...item, value } : item));
+  }
+
+  async function sendBroadcast() {
+    const title = broadcastTitle.trim();
+    const body = broadcastBody.trim();
+    if (title.length < 3) {
+      Alert.alert('Нужен заголовок', 'Минимум 3 символа.');
+      return;
+    }
+
+    setSendingBroadcast(true);
+    const { data, error } = await supabase.rpc('create_admin_broadcast', {
+      p_title: title,
+      p_body: body,
+    });
+    setSendingBroadcast(false);
+
+    if (error) {
+      Alert.alert('Не удалось отправить', error.message);
+      return;
+    }
+
+    setBroadcastTitle('');
+    setBroadcastBody('');
+    Alert.alert('Готово', `Уведомление отправлено: ${data ?? 0} пользователям.`);
+    await loadAdminData();
   }
 
   if (!isAdmin) {
@@ -382,7 +610,7 @@ export default function AdminDashboardScreen() {
         <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.heroTitle, { color: theme.text }]}>Super Admin</Text>
           <Text style={[styles.heroText, { color: theme.subtext }]}>
-            Доступ ко всем чатам, ивентам, модерации и статистике. Админ не добавляется в участники чатов.
+            Управление пользователями, чатами, ивентами, модерацией, настройками и статистикой.
           </Text>
           <View style={styles.quickActions}>
             <TouchableOpacity style={[styles.quickBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('ModeratorDashboard')}>
@@ -400,6 +628,8 @@ export default function AdminDashboardScreen() {
             { key: 'users', label: 'Юзеры' },
             { key: 'events', label: 'Ивенты' },
             { key: 'chats', label: 'Чаты' },
+            { key: 'history', label: 'История' },
+            { key: 'tools', label: 'Инструменты' },
           ].map(tab => {
             const selected = activeTab === tab.key;
             return (
@@ -415,14 +645,27 @@ export default function AdminDashboardScreen() {
         </View>
 
         {activeTab === 'overview' && (
-          <View style={styles.statsGrid}>
-            {stats.map(stat => (
-              <View key={stat.label} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Text style={[styles.statValue, { color: stat.tone }]}>{stat.value}</Text>
-                <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
+          <>
+            <View style={styles.statsGrid}>
+              {stats.map(stat => (
+                <View key={stat.label} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Text style={[styles.statValue, { color: stat.tone }]}>{stat.value}</Text>
+                  <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={[styles.section, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.subtext }]}>MVP аналитика</Text>
+              <View style={styles.statsGridInner}>
+                {analytics.map(stat => (
+                  <View key={stat.label} style={[styles.statCardSmall, { borderColor: theme.border }]}>
+                    <Text style={[styles.statValueSmall, { color: stat.tone }]}>{stat.value}</Text>
+                    <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            </View>
+          </>
         )}
 
         {activeTab === 'users' && (
@@ -437,93 +680,143 @@ export default function AdminDashboardScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {selectedProfile && (
+              <View style={[styles.detailPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.eventInfo}>
+                    <Text style={[styles.itemTitle, { color: theme.text }]}>{selectedProfile.name}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>{selectedProfile.email || selectedProfile.id}</Text>
+                  </View>
+                  <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.card }]} onPress={() => { setSelectedProfile(null); setUserDetails(null); }}>
+                    <Text style={[styles.smallBtnText, { color: theme.subtext }]}>Скрыть</Text>
+                  </TouchableOpacity>
+                </View>
+                {userDetailsLoading ? (
+                  <ActivityIndicator color={theme.accent} style={{ marginTop: 12 }} />
+                ) : userDetails ? (
+                  <>
+                    <Text style={[styles.detailTitle, { color: theme.subtext }]}>Ивенты пользователя</Text>
+                    {userDetails.events.length === 0 ? <Text style={[styles.itemMeta, { color: theme.subtext }]}>Нет ивентов</Text> : null}
+                    {userDetails.events.map(event => (
+                      <Text key={event.id} style={[styles.detailLine, { color: theme.text }]}>
+                        {event.title} · {event.status} · {formatDate(event.created_at)}
+                      </Text>
+                    ))}
+                    <Text style={[styles.detailTitle, { color: theme.subtext }]}>Последние сообщения</Text>
+                    {userDetails.messages.length === 0 ? <Text style={[styles.itemMeta, { color: theme.subtext }]}>Нет сообщений</Text> : null}
+                    {userDetails.messages.map(message => (
+                      <Text key={message.id} style={[styles.detailLine, { color: theme.text }]}>
+                        {message.text || '[медиа]'} · {formatDate(message.created_at)}
+                      </Text>
+                    ))}
+                    <Text style={[styles.detailTitle, { color: theme.subtext }]}>Жалобы и отзывы</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>
+                      Жалоб: {userDetails.reports.length} · Отзывов: {userDetails.reviews.length}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
+            )}
+
             {filteredProfiles.map(profile => {
               const protectedPeerAdmin = isProtectedPeerAdmin(profile);
               const manageable = canManageProfile(profile);
-
               return (
-              <View key={profile.id} style={[styles.userCard, { borderTopColor: theme.border }]}>
-                <View style={styles.rowBetween}>
-                  <View style={styles.eventInfo}>
-                    <Text style={[styles.itemTitle, { color: theme.text }]}>{profile.name}</Text>
-                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
-                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>
-                      {profile.role} · {profile.is_banned ? 'бан' : 'активен'} · {formatDate(profile.created_at)}
-                    </Text>
-                    {profile.ban_reason ? (
-                      <Text style={[styles.itemMeta, { color: '#D92D20' }]}>{profile.ban_reason}</Text>
-                    ) : null}
-                    {protectedPeerAdmin ? (
-                      <Text style={[styles.itemMeta, { color: '#E07B2C' }]}>Защищенный admin: другой admin не может менять этот аккаунт</Text>
-                    ) : null}
+                <View key={profile.id} style={[styles.userCard, { borderTopColor: theme.border }]}>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.eventInfo}>
+                      <Text style={[styles.itemTitle, { color: theme.text }]}>{profile.name}</Text>
+                      <Text style={[styles.itemMeta, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
+                      <Text style={[styles.itemMeta, { color: theme.subtext }]}>
+                        {profile.role} · {profile.is_banned ? 'бан' : 'активен'} · {formatDate(profile.created_at)}
+                      </Text>
+                      <Text style={[styles.itemMeta, { color: theme.subtext }]}>
+                        joined: {profile.events_joined ?? 0} · friends: {profile.friends_made ?? 0}
+                      </Text>
+                      {profile.ban_reason ? <Text style={[styles.itemMeta, { color: '#D92D20' }]}>{profile.ban_reason}</Text> : null}
+                      {protectedPeerAdmin ? <Text style={[styles.itemMeta, { color: '#E07B2C' }]}>Другой admin защищен от изменений</Text> : null}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
+                      onPress={() => navigation.navigate('UserProfile', { userId: profile.id, userName: profile.name, userAvatar: profile.avatar })}
+                    >
+                      <Text style={[styles.smallBtnText, { color: theme.accent }]}>Профиль</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
-                    onPress={() => navigation.navigate('UserProfile', { userId: profile.id, userName: profile.name, userAvatar: profile.avatar })}
-                  >
-                    <Text style={[styles.smallBtnText, { color: theme.accent }]}>Профиль</Text>
-                  </TouchableOpacity>
-                </View>
 
-                <View style={styles.roles}>
-                  {ROLES.map(role => (
-                    <TouchableOpacity
-                      key={role}
-                      disabled={protectedPeerAdmin || (profile.id === user?.id && role !== 'admin')}
-                      style={[
-                        styles.roleBtn,
-                        {
-                          borderColor: profile.role === role ? theme.accent : theme.border,
-                          backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
-                          opacity: protectedPeerAdmin || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
-                        },
-                      ]}
-                      onPress={() => setUserRole(profile, role)}
-                    >
-                      <Text style={[styles.roleText, { color: profile.role === role ? theme.accent : theme.subtext }]}>{role}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                  <View style={styles.roles}>
+                    {ROLES.map(role => (
+                      <TouchableOpacity
+                        key={role}
+                        disabled={protectedPeerAdmin || (profile.id === user?.id && role !== 'admin')}
+                        style={[
+                          styles.roleBtn,
+                          {
+                            borderColor: profile.role === role ? theme.accent : theme.border,
+                            backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
+                            opacity: protectedPeerAdmin || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
+                          },
+                        ]}
+                        onPress={() => setUserRole(profile, role)}
+                      >
+                        <Text style={[styles.roleText, { color: profile.role === role ? theme.accent : theme.subtext }]}>{role}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-                <View style={styles.actions}>
-                  {profile.is_banned ? (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: manageable ? '#2E9E5D' : theme.subtext }]}
-                      onPress={() => unbanUser(profile)}
-                      disabled={!manageable}
-                    >
-                      <Text style={styles.actionText}>Разбанить</Text>
+                  <View style={styles.actions}>
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => loadProfileDetails(profile)}>
+                      <Text style={styles.actionText}>Детали</Text>
                     </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: manageable ? '#E07B2C' : theme.subtext }]}
-                      onPress={() => banUser(profile)}
-                      disabled={!manageable}
-                    >
-                      <Text style={styles.actionText}>Бан</Text>
+                    {profile.is_banned ? (
+                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#2E9E5D' : theme.subtext }]} onPress={() => unbanUser(profile)} disabled={!manageable}>
+                        <Text style={styles.actionText}>Разбанить</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#E07B2C' : theme.subtext }]} onPress={() => banUser(profile)} disabled={!manageable}>
+                        <Text style={styles.actionText}>Бан</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#D92D20' : theme.subtext }]} onPress={() => hardDeleteUser(profile)} disabled={!manageable}>
+                      <Text style={styles.actionText}>Удалить навсегда</Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: manageable ? '#D92D20' : theme.subtext }]}
-                    onPress={() => hardDeleteUser(profile)}
-                    disabled={!manageable}
-                  >
-                    <Text style={styles.actionText}>Удалить навсегда</Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            );
+              );
             })}
-            {filteredProfiles.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text>
-            ) : null}
+            {filteredProfiles.length === 0 ? <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text> : null}
           </View>
         )}
 
         {activeTab === 'events' && (
           <View style={[styles.section, { backgroundColor: theme.card }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Управление ивентами</Text>
-            {events.map(event => (
+            <TextInput
+              style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+              value={eventSearch}
+              onChangeText={setEventSearch}
+              placeholder="Поиск ивента"
+              placeholderTextColor={theme.subtext}
+              autoCorrect={false}
+            />
+            <View style={styles.roles}>
+              {EVENT_FILTERS.map(filter => (
+                <TouchableOpacity
+                  key={filter.key}
+                  style={[
+                    styles.roleBtn,
+                    {
+                      borderColor: eventFilter === filter.key ? theme.accent : theme.border,
+                      backgroundColor: eventFilter === filter.key ? theme.accentLight : 'transparent',
+                    },
+                  ]}
+                  onPress={() => setEventFilter(filter.key)}
+                >
+                  <Text style={[styles.roleText, { color: eventFilter === filter.key ? theme.accent : theme.subtext }]}>{filter.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {filteredEvents.map(event => (
               <View key={event.id} style={[styles.eventCard, { borderTopColor: theme.border }]}>
                 <View style={styles.rowBetween}>
                   <View style={styles.eventInfo}>
@@ -531,11 +824,9 @@ export default function AdminDashboardScreen() {
                     <Text style={[styles.itemMeta, { color: theme.subtext }]}>
                       {event.status} · {event.participants_count ?? 0} участников · {formatDate(event.created_at)}
                     </Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>creator: {profileById[event.created_by ?? '']?.email ?? event.created_by ?? '-'}</Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
-                    onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}
-                  >
+                  <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.accentLight }]} onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}>
                     <Text style={[styles.smallBtnText, { color: theme.accent }]}>Открыть</Text>
                   </TouchableOpacity>
                 </View>
@@ -568,7 +859,7 @@ export default function AdminDashboardScreen() {
           <View style={styles.chatLayout}>
             <View style={[styles.section, { backgroundColor: theme.card }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Все чаты</Text>
-              {events.map(event => (
+              {filteredEvents.map(event => (
                 <TouchableOpacity
                   key={event.id}
                   style={[
@@ -611,6 +902,77 @@ export default function AdminDashboardScreen() {
             </View>
           </View>
         )}
+
+        {activeTab === 'history' && (
+          <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>История действий админов</Text>
+            {auditLogs.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.subtext }]}>Логов пока нет</Text>
+            ) : (
+              auditLogs.map(log => {
+                const actor = log.actor_id ? profileById[log.actor_id] : null;
+                const target = log.target_user_id ? profileById[log.target_user_id] : null;
+                return (
+                  <View key={log.id} style={[styles.eventCard, { borderTopColor: theme.border }]}>
+                    <Text style={[styles.itemTitle, { color: theme.text }]}>{log.action}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>Кто: {actor?.email ?? actor?.name ?? log.actor_id ?? 'system'}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>Цель: {target?.email ?? target?.name ?? log.target_user_id ?? log.target_event_id ?? '-'}</Text>
+                    {log.details ? <Text style={[styles.messageText, { color: theme.subtext }]}>{cleanDetails(log.details)}</Text> : null}
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>{formatDate(log.created_at)}</Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {activeTab === 'tools' && (
+          <>
+            <View style={[styles.section, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Broadcast всем пользователям</Text>
+              <TextInput
+                style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                value={broadcastTitle}
+                onChangeText={setBroadcastTitle}
+                placeholder="Заголовок"
+                placeholderTextColor={theme.subtext}
+              />
+              <TextInput
+                style={[styles.textArea, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                value={broadcastBody}
+                onChangeText={setBroadcastBody}
+                placeholder="Текст объявления"
+                placeholderTextColor={theme.subtext}
+                multiline
+              />
+              <TouchableOpacity style={[styles.sendWideBtn, { backgroundColor: theme.accent }]} onPress={sendBroadcast} disabled={sendingBroadcast}>
+                <Text style={styles.actionText}>{sendingBroadcast ? 'Отправляем...' : 'Отправить всем'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.section, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Системные настройки</Text>
+              {settings.map(setting => (
+                <View key={setting.key} style={[styles.eventCard, { borderTopColor: theme.border }]}>
+                  <Text style={[styles.itemTitle, { color: theme.text }]}>{setting.key}</Text>
+                  {setting.description ? <Text style={[styles.itemMeta, { color: theme.subtext }]}>{setting.description}</Text> : null}
+                  <TextInput
+                    style={[styles.searchInputInline, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                    defaultValue={setting.value}
+                    placeholderTextColor={theme.subtext}
+                    autoCapitalize="none"
+                    onSubmitEditing={event => updateSetting(setting, event.nativeEvent.text.trim())}
+                    onEndEditing={event => {
+                      const value = event.nativeEvent.text.trim();
+                      if (value !== setting.value) updateSetting(setting, value);
+                    }}
+                  />
+                  <Text style={[styles.itemMeta, { color: theme.subtext }]}>updated: {formatDate(setting.updated_at)}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -626,12 +988,15 @@ const styles = StyleSheet.create({
   quickActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
   quickBtn: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   quickBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
-  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12 },
+  tab: { minWidth: '31%', flexGrow: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   tabText: { fontSize: 13, fontWeight: '800' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  statsGridInner: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
   statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16 },
+  statCardSmall: { width: '48%', borderWidth: 1, borderRadius: 14, padding: 12 },
   statValue: { fontSize: 28, fontWeight: '900' },
+  statValueSmall: { fontSize: 22, fontWeight: '900' },
   statLabel: { fontSize: 12, marginTop: 4 },
   section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, padding: 16, paddingBottom: 8 },
@@ -644,6 +1009,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
+  searchInputInline: {
+    borderWidth: 1,
+    borderRadius: 14,
+    fontSize: 14,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: 14,
+    fontSize: 14,
+    minHeight: 88,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    textAlignVertical: 'top',
+  },
+  detailPanel: { borderWidth: 1, borderRadius: 14, marginHorizontal: 16, marginBottom: 12, padding: 14 },
+  detailTitle: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginTop: 12, marginBottom: 5 },
+  detailLine: { fontSize: 13, lineHeight: 18, marginTop: 3 },
   userCard: { padding: 16, borderTopWidth: 1 },
   eventCard: { padding: 16, borderTopWidth: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -651,10 +1038,11 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 15, fontWeight: '800' },
   itemMeta: { fontSize: 12, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, paddingHorizontal: 16 },
   roleBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
   roleText: { fontSize: 12, fontWeight: '800' },
   actionBtn: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  sendWideBtn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginHorizontal: 16, marginBottom: 16 },
   actionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   smallBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
   smallBtnText: { fontSize: 12, fontWeight: '800' },
