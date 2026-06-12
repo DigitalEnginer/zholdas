@@ -16,6 +16,7 @@ import { useHaptics } from '../hooks/useHaptics';
 import { supabase } from '../lib/supabase';
 import { eventStatusLabels } from '../data/mockEvents';
 import { uploadImageToStorage } from '../lib/storage';
+import { userMessageFromModerationError, validateChatMessage } from '../lib/contentModeration';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 
@@ -58,13 +59,18 @@ async function askOpenAI(question: string, eventTitle: string, eventId: string):
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        message: `Ивент: "${eventTitle}". Вопрос пользователя: ${question}`,
+        message: question,
         event_id: eventId,
+        event_title: eventTitle,
       }),
     });
 
     if (!response.ok) {
-      return { reply: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)], saved: false };
+      const data = await response.json().catch(() => null);
+      return {
+        reply: data?.detail ?? fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
+        saved: false,
+      };
     }
 
     const data = await response.json();
@@ -187,12 +193,17 @@ export default function ChatScreen() {
       is_ai: isAI,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(userMessageFromModerationError(error.message) ?? error.message);
   }
 
   async function handleSend() {
     const text = inputText.trim();
     if (!text) return;
+    const moderation = validateChatMessage(text);
+    if (!moderation.ok) {
+      Alert.alert('Модерация', moderation.message);
+      return;
+    }
     if (!joined && event?.createdBy !== user?.id && user?.role !== 'moderator' && user?.role !== 'admin') {
       Alert.alert('', 'Сначала вступи в ивент, чтобы писать в чат');
       return;
@@ -324,6 +335,11 @@ export default function ChatScreen() {
       return;
     }
     const question = inputText.trim() || `Расскажи об ивенте "${eventTitle}"`;
+    const moderation = validateChatMessage(question);
+    if (!moderation.ok) {
+      Alert.alert('Модерация', moderation.message);
+      return;
+    }
     setInputText('');
     if (inputText.trim()) sendMessage(inputText.trim());
     setIsAITyping(true);
