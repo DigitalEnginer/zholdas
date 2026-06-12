@@ -178,6 +178,8 @@ EXPO_PUBLIC_SUPER_ADMIN_EMAIL=admin@example.com,second-admin@example.com
 
 For database-level access to all chats, event deletion, and site stats, run `supabase_admin_panel.sql` after replacing `admin@example.com` with the real super admin email. Add one row per super admin in `public.super_admin_emails`.
 
+The super admin user tools can change roles, ban/unban users, and hard-delete test or spam accounts. Hard delete calls the backend `/admin/users/:id` endpoint and requires `SUPABASE_SERVICE_ROLE_KEY` on the backend host, because deleting Supabase Auth users must never happen from the public frontend.
+
 ## Social Features
 
 - Friend requests

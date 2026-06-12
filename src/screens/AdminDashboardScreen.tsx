@@ -1,18 +1,21 @@
 import React from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView, StyleSheet,
-  Text, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { EventStatus, RootStackParamList } from '../types';
+import { AppRole, EventStatus, RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getSuperAdminEmailRequirement, isSuperAdmin } from '../lib/adminAccess';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type AdminTab = 'overview' | 'events' | 'chats';
+type AdminTab = 'overview' | 'users' | 'events' | 'chats';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+const ROLES: AppRole[] = ['user', 'moderator', 'admin'];
 
 interface AdminEvent {
   id: string;
@@ -32,6 +35,19 @@ interface AdminMessage {
   text: string;
   is_ai: boolean | null;
   created_at: string;
+}
+
+interface AdminProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: AppRole;
+  is_banned: boolean;
+  ban_reason: string | null;
+  created_at: string;
+  events_joined: number | null;
+  friends_made: number | null;
 }
 
 interface StatCard {
@@ -58,12 +74,18 @@ export default function AdminDashboardScreen() {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [stats, setStats] = React.useState<StatCard[]>([]);
+  const [profiles, setProfiles] = React.useState<AdminProfile[]>([]);
+  const [userSearch, setUserSearch] = React.useState('');
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState<AdminMessage[]>([]);
 
   const isAdmin = isSuperAdmin(user);
   const selectedEvent = events.find(event => event.id === selectedEventId) ?? null;
+  const filteredProfiles = profiles.filter(profile => {
+    const haystack = `${profile.name} ${profile.email} ${profile.id}`.toLowerCase();
+    return haystack.includes(userSearch.trim().toLowerCase());
+  });
 
   React.useEffect(() => {
     loadAdminData();
@@ -94,6 +116,7 @@ export default function AdminDashboardScreen() {
       pendingReportsCount,
       bansCount,
       { data: eventsData },
+      { data: profilesData },
     ] = await Promise.all([
       countRows('profiles'),
       countRows('events'),
@@ -106,6 +129,11 @@ export default function AdminDashboardScreen() {
         .select('id, title, status, created_by, created_at, datetime, participants_count')
         .order('created_at', { ascending: false })
         .limit(80),
+      supabase
+        .from('profiles')
+        .select('id, name, email, avatar, role, is_banned, ban_reason, created_at, events_joined, friends_made')
+        .order('created_at', { ascending: false })
+        .limit(150),
     ]);
 
     setStats([
@@ -128,6 +156,18 @@ export default function AdminDashboardScreen() {
     }));
 
     setEvents(nextEvents);
+    setProfiles(((profilesData ?? []) as any[]).map(profile => ({
+      id: profile.id,
+      name: profile.name ?? 'Пользователь',
+      email: profile.email ?? '',
+      avatar: profile.avatar ?? '👤',
+      role: profile.role ?? 'user',
+      is_banned: !!profile.is_banned,
+      ban_reason: profile.ban_reason ?? null,
+      created_at: profile.created_at,
+      events_joined: profile.events_joined ?? 0,
+      friends_made: profile.friends_made ?? 0,
+    })));
     setSelectedEventId(prev => prev ?? nextEvents[0]?.id ?? null);
     setLoading(false);
   }
@@ -198,6 +238,91 @@ export default function AdminDashboardScreen() {
     setMessages(prev => prev.filter(item => item.id !== message.id));
   }
 
+  async function setUserRole(profile: AdminProfile, role: AppRole) {
+    if (profile.id === user?.id && role !== 'admin') {
+      Alert.alert('Нельзя снять admin с себя', 'Сначала назначьте другого super-admin.');
+      return;
+    }
+
+    const { error } = await supabase.from('profiles').update({ role }).eq('id', profile.id);
+    if (error) {
+      Alert.alert('Не удалось изменить роль', error.message);
+      return;
+    }
+
+    setProfiles(prev => prev.map(item => item.id === profile.id ? { ...item, role } : item));
+  }
+
+  async function banUser(profile: AdminProfile) {
+    if (!user || profile.id === user.id) return;
+
+    const { error } = await supabase.from('user_bans').insert({
+      user_id: profile.id,
+      banned_by: user.id,
+      reason: 'Заблокировано super-admin',
+    });
+
+    if (error) {
+      Alert.alert('Не удалось забанить', error.message);
+      return;
+    }
+
+    await loadAdminData();
+  }
+
+  async function unbanUser(profile: AdminProfile) {
+    const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
+    if (error) {
+      Alert.alert('Не удалось разбанить', error.message);
+      return;
+    }
+
+    await loadAdminData();
+  }
+
+  function hardDeleteUser(profile: AdminProfile) {
+    if (profile.id === user?.id) {
+      Alert.alert('Нельзя удалить себя', 'Это защита от случайной потери админ-доступа.');
+      return;
+    }
+
+    Alert.alert(
+      'Удалить пользователя навсегда?',
+      `${profile.email || profile.name}\n\nБудут удалены профиль, auth-аккаунт, сообщения, участия, жалобы, баны и созданные им ивенты.`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            const accessToken = session?.access_token;
+
+            if (!accessToken) {
+              Alert.alert('Нет сессии', 'Войдите заново в аккаунт администратора.');
+              return;
+            }
+
+            const response = await fetch(`${BACKEND_URL}/admin/users/${profile.id}`, {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+
+            if (!response.ok) {
+              const payload = await response.json().catch(() => null);
+              Alert.alert('Не удалось удалить', payload?.detail ?? 'Backend вернул ошибку');
+              return;
+            }
+
+            await loadAdminData();
+          },
+        },
+      ],
+    );
+  }
+
   if (!isAdmin) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -245,6 +370,7 @@ export default function AdminDashboardScreen() {
         <View style={[styles.tabs, { backgroundColor: theme.card }]}>
           {[
             { key: 'overview', label: 'Статистика' },
+            { key: 'users', label: 'Юзеры' },
             { key: 'events', label: 'Ивенты' },
             { key: 'chats', label: 'Чаты' },
           ].map(tab => {
@@ -269,6 +395,87 @@ export default function AdminDashboardScreen() {
                 <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {activeTab === 'users' && (
+          <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Управление пользователями</Text>
+            <TextInput
+              style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+              value={userSearch}
+              onChangeText={setUserSearch}
+              placeholder="Поиск по имени, email или id"
+              placeholderTextColor={theme.subtext}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {filteredProfiles.map(profile => (
+              <View key={profile.id} style={[styles.userCard, { borderTopColor: theme.border }]}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.eventInfo}>
+                    <Text style={[styles.itemTitle, { color: theme.text }]}>{profile.name}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
+                    <Text style={[styles.itemMeta, { color: theme.subtext }]}>
+                      {profile.role} · {profile.is_banned ? 'бан' : 'активен'} · {formatDate(profile.created_at)}
+                    </Text>
+                    {profile.ban_reason ? (
+                      <Text style={[styles.itemMeta, { color: '#D92D20' }]}>{profile.ban_reason}</Text>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
+                    onPress={() => navigation.navigate('UserProfile', { userId: profile.id, userName: profile.name, userAvatar: profile.avatar })}
+                  >
+                    <Text style={[styles.smallBtnText, { color: theme.accent }]}>Профиль</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.roles}>
+                  {ROLES.map(role => (
+                    <TouchableOpacity
+                      key={role}
+                      style={[
+                        styles.roleBtn,
+                        {
+                          borderColor: profile.role === role ? theme.accent : theme.border,
+                          backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
+                        },
+                      ]}
+                      onPress={() => setUserRole(profile, role)}
+                    >
+                      <Text style={[styles.roleText, { color: profile.role === role ? theme.accent : theme.subtext }]}>{role}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.actions}>
+                  {profile.is_banned ? (
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#2E9E5D' }]} onPress={() => unbanUser(profile)}>
+                      <Text style={styles.actionText}>Разбанить</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: profile.id === user?.id ? theme.subtext : '#E07B2C' }]}
+                      onPress={() => banUser(profile)}
+                      disabled={profile.id === user?.id}
+                    >
+                      <Text style={styles.actionText}>Бан</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: profile.id === user?.id ? theme.subtext : '#D92D20' }]}
+                    onPress={() => hardDeleteUser(profile)}
+                    disabled={profile.id === user?.id}
+                  >
+                    <Text style={styles.actionText}>Удалить навсегда</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+            {filteredProfiles.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.subtext }]}>Пользователи не найдены</Text>
+            ) : null}
           </View>
         )}
 
@@ -387,12 +594,25 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, marginTop: 4 },
   section: { borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, padding: 16, paddingBottom: 8 },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 14,
+    fontSize: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  userCard: { padding: 16, borderTopWidth: 1 },
   eventCard: { padding: 16, borderTopWidth: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   eventInfo: { flex: 1 },
   itemTitle: { fontSize: 15, fontWeight: '800' },
   itemMeta: { fontSize: 12, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  roleBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
+  roleText: { fontSize: 12, fontWeight: '800' },
   actionBtn: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   actionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   smallBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },

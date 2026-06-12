@@ -140,6 +140,126 @@ def verify_supabase_token(authorization: str | None):
     return response.json()
 
 
+def service_role_headers():
+    if not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(status_code=500, detail="SUPABASE_SERVICE_ROLE_KEY is missing")
+
+    return {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+    }
+
+
+def fetch_service_rows(table: str, params: dict):
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=service_role_headers(),
+        params=params,
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"Could not load {table}: {response.text}")
+
+    return response.json()
+
+
+def ensure_super_admin(user_id: str):
+    profiles = fetch_service_rows(
+        "profiles",
+        {
+            "id": f"eq.{user_id}",
+            "select": "id,email,role,is_banned",
+            "limit": "1",
+        },
+    )
+
+    if not profiles:
+        raise HTTPException(status_code=403, detail="Admin profile not found")
+
+    profile = profiles[0]
+    if profile.get("role") != "admin" or profile.get("is_banned"):
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    try:
+        allowed_emails = fetch_service_rows("super_admin_emails", {"select": "email"})
+    except HTTPException:
+        allowed_emails = []
+
+    allowed = {
+        (item.get("email") or "").strip().lower()
+        for item in allowed_emails
+        if item.get("email")
+    }
+
+    if allowed and (profile.get("email") or "").strip().lower() not in allowed:
+        raise HTTPException(status_code=403, detail="Super admin email is not allowed")
+
+    return profile
+
+
+def rest_delete(table: str, params: dict, *, optional: bool = False):
+    response = requests.delete(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers={
+            **service_role_headers(),
+            "Prefer": "return=minimal",
+        },
+        params=params,
+        timeout=15,
+    )
+
+    if response.status_code in (200, 204):
+        return
+
+    if optional and response.status_code in (404, 400):
+        return
+
+    raise HTTPException(status_code=500, detail=f"Could not delete from {table}: {response.text}")
+
+
+def delete_auth_user(user_id: str):
+    response = requests.delete(
+        f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
+        headers=service_role_headers(),
+        timeout=15,
+    )
+
+    if response.status_code not in (200, 204):
+        raise HTTPException(status_code=500, detail=f"Could not delete auth user: {response.text}")
+
+
+def cleanup_user_data(target_user_id: str):
+    created_events = fetch_service_rows(
+        "events",
+        {
+            "created_by": f"eq.{target_user_id}",
+            "select": "id",
+        },
+    )
+    created_event_ids = [event["id"] for event in created_events if event.get("id")]
+    event_id_filter = f"in.({','.join(created_event_ids)})" if created_event_ids else None
+
+    if event_id_filter:
+        rest_delete("messages", {"event_id": event_id_filter})
+        rest_delete("event_participants", {"event_id": event_id_filter})
+        rest_delete("reviews", {"event_id": event_id_filter}, optional=True)
+        rest_delete("content_moderation_violations", {"event_id": event_id_filter}, optional=True)
+
+    rest_delete("messages", {"user_id": f"eq.{target_user_id}"})
+    rest_delete("event_participants", {"user_id": f"eq.{target_user_id}"})
+    rest_delete("friend_requests", {"or": f"(from_user_id.eq.{target_user_id},to_user_id.eq.{target_user_id})"}, optional=True)
+    rest_delete("blocks", {"or": f"(blocker_id.eq.{target_user_id},blocked_id.eq.{target_user_id})"}, optional=True)
+    rest_delete("notifications", {"or": f"(recipient_id.eq.{target_user_id},actor_id.eq.{target_user_id})"}, optional=True)
+    rest_delete("reports", {"or": f"(reporter_id.eq.{target_user_id},reported_user_id.eq.{target_user_id})"})
+    rest_delete("user_bans", {"or": f"(user_id.eq.{target_user_id},banned_by.eq.{target_user_id})"})
+    rest_delete("moderation_actions", {"or": f"(moderator_id.eq.{target_user_id},target_user_id.eq.{target_user_id})"}, optional=True)
+    rest_delete("content_moderation_violations", {"user_id": f"eq.{target_user_id}"}, optional=True)
+    rest_delete("reviews", {"or": f"(from_user_id.eq.{target_user_id},to_user_id.eq.{target_user_id})"}, optional=True)
+    rest_delete("events", {"created_by": f"eq.{target_user_id}"})
+    rest_delete("profiles", {"id": f"eq.{target_user_id}"})
+
+
 def ensure_user_is_not_banned(user_id: str, token: str):
     response = requests.get(
         f"{SUPABASE_URL}/rest/v1/profiles",
@@ -253,6 +373,33 @@ def me(authorization: str | None = Header(default=None)):
     return {
         "id": user.get("id"),
         "email": user.get("email"),
+    }
+
+
+@app.delete("/admin/users/{target_user_id}")
+def admin_delete_user(target_user_id: str, authorization: str | None = Header(default=None)):
+    user = verify_supabase_token(authorization)
+    admin_profile = ensure_super_admin(user.get("id"))
+
+    if target_user_id == user.get("id"):
+        raise HTTPException(status_code=400, detail="Admins cannot delete their own account")
+
+    target_profiles = fetch_service_rows(
+        "profiles",
+        {
+            "id": f"eq.{target_user_id}",
+            "select": "id,email,role",
+            "limit": "1",
+        },
+    )
+
+    cleanup_user_data(target_user_id)
+    delete_auth_user(target_user_id)
+
+    return {
+        "deleted_user_id": target_user_id,
+        "deleted_email": target_profiles[0].get("email") if target_profiles else None,
+        "admin_id": admin_profile.get("id"),
     }
 
 

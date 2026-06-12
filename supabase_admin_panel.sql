@@ -53,6 +53,13 @@ to authenticated
 using (public.is_super_admin());
 
 drop policy if exists events_delete_super_admin on public.events;
+drop policy if exists events_select_super_admin on public.events;
+
+create policy events_select_super_admin
+on public.events
+for select
+to authenticated
+using (public.is_super_admin());
 
 create policy events_delete_super_admin
 on public.events
@@ -61,12 +68,20 @@ to authenticated
 using (public.is_super_admin());
 
 drop policy if exists profiles_select_super_admin on public.profiles;
+drop policy if exists profiles_update_super_admin on public.profiles;
 
 create policy profiles_select_super_admin
 on public.profiles
 for select
 to authenticated
 using (public.is_super_admin());
+
+create policy profiles_update_super_admin
+on public.profiles
+for update
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
 
 drop policy if exists content_violations_select_super_admin on public.content_moderation_violations;
 
