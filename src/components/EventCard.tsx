@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Event } from '../types';
 import { eventStatusColors } from '../data/mockEvents';
 import { useTheme } from '../context/ThemeContext';
@@ -22,6 +23,7 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
   const isActive = status === 'active';
   const statusColor = eventStatusColors[status];
   const statusText = t(status === 'finished' ? 'statusFinished' : status === 'cancelled' ? 'statusCancelled' : 'statusActive');
+  const spotsWord = spotsLeft === 1 ? 'место' : 'места';
 
   return (
     <TouchableOpacity
@@ -30,8 +32,22 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
       activeOpacity={0.9}
     >
       {event.imageUri ? (
-        <Image source={{ uri: event.imageUri }} style={styles.photo} />
-      ) : null}
+        <View style={styles.photoWrap}>
+          <Image source={{ uri: event.imageUri }} style={styles.photo} />
+          <LinearGradient colors={['rgba(17,24,39,0.02)', 'rgba(17,24,39,0.42)']} style={styles.photoOverlay} />
+        </View>
+      ) : (
+        <LinearGradient
+          colors={[theme.accentLight, '#ECFDF3']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.placeholder, { borderBottomColor: theme.border }]}
+        >
+          <Text style={[styles.placeholderText, { color: theme.accentText }]}>
+            {t(`filter${event.category === 'mountains' ? 'Mountains' : event.category === 'theatre' ? 'Theatre' : event.category === 'restaurant' ? 'Restaurant' : event.category === 'sport' ? 'Sport' : 'Other'}`)}
+          </Text>
+        </LinearGradient>
+      )}
 
       <View style={styles.header}>
         <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
@@ -54,20 +70,34 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
         </View>
       </View>
 
-      <Text style={[styles.title, { color: theme.text }]}>{event.title}</Text>
+      <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{event.title}</Text>
       <Text style={[styles.description, { color: theme.subtext }]} numberOfLines={2}>
         {event.description}
       </Text>
 
+      <View style={[styles.infoStrip, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, { color: theme.subtext }]}>{t('participants')}</Text>
+          <Text style={[styles.infoValue, { color: theme.text }]}>{event.participantsCount}/{event.maxParticipants}</Text>
+        </View>
+        <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, { color: theme.subtext }]}>{t('spotsLeft')}</Text>
+          <Text style={[styles.infoValue, { color: theme.text }]}>{Math.max(0, spotsLeft)}</Text>
+        </View>
+        <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+        <View style={styles.infoItem}>
+          <Text style={[styles.infoLabel, { color: theme.subtext }]}>{statusText}</Text>
+          <Text style={[styles.infoValue, { color: theme.text }]}>{isActive ? t('enterBtn') : statusText}</Text>
+        </View>
+      </View>
+
       <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-        <View
-          style={[
-            styles.progressFill,
-            {
-              backgroundColor: theme.accent,
-              width: `${Math.min(100, (event.participantsCount / event.maxParticipants) * 100)}%`,
-            },
-          ]}
+        <LinearGradient
+          colors={[theme.accent, '#17A39A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.progressFill, { width: `${Math.min(100, (event.participantsCount / event.maxParticipants) * 100)}%` }]}
         />
       </View>
 
@@ -80,7 +110,7 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
             </Text>
           </Text>
           {spotsLeft <= 3 && spotsLeft > 0 && (
-            <Text style={[styles.spotsLeft, { color: theme.warning }]}> · {t('spotsLeft')} {spotsLeft}</Text>
+            <Text style={[styles.spotsLeft, { color: theme.warning }]}> · {t('spotsLeft')} {spotsLeft} {spotsWord}</Text>
           )}
           {isFull && <Text style={[styles.full, { color: theme.danger }]}> · {t('noSpots')}</Text>}
           {!!event.hiddenParticipantsCount && (
@@ -123,19 +153,28 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     marginHorizontal: 16,
     marginVertical: 8,
     maxWidth: 760,
     shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
     overflow: 'hidden',
   },
-  photo: { width: '100%', height: 160 },
+  photoWrap: { height: 160 },
+  photo: { width: '100%', height: '100%' },
+  photoOverlay: { ...StyleSheet.absoluteFillObject },
+  placeholder: {
+    height: 112,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+  },
+  placeholderText: { fontSize: 13, fontWeight: '900' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -157,8 +196,20 @@ const styles = StyleSheet.create({
   datetime: { fontSize: 11, fontWeight: '500' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 6, paddingHorizontal: 16, letterSpacing: -0.2 },
+  title: { fontSize: 20, fontWeight: '900', marginBottom: 6, paddingHorizontal: 16, letterSpacing: -0.2, lineHeight: 24 },
   description: { fontSize: 13, lineHeight: 18, marginBottom: 12, paddingHorizontal: 16 },
+  infoStrip: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  infoItem: { flex: 1, alignItems: 'center', paddingVertical: 10 },
+  infoLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
+  infoValue: { fontSize: 13, fontWeight: '900', marginTop: 2 },
+  infoDivider: { width: 1 },
   progressBar: { height: 3, borderRadius: 999, overflow: 'hidden', marginBottom: 14, marginHorizontal: 16 },
   progressFill: { height: '100%', borderRadius: 999 },
   footer: {

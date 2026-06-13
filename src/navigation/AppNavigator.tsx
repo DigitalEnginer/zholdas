@@ -253,19 +253,24 @@ export default function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 10,
     borderTopWidth: 1,
-    elevation: 0,
+    borderRadius: 24,
+    elevation: 10,
     shadowColor: '#101828',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    height: 64,
-    paddingBottom: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    height: 70,
+    paddingBottom: 9,
     paddingTop: 8,
   },
   tabLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '800',
     marginTop: 2,
   },
   tabIconWrapper: {
@@ -286,7 +291,7 @@ const styles = StyleSheet.create({
   tabIcon: {
     width: 40,
     height: 32,
-    borderRadius: 8,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
   },

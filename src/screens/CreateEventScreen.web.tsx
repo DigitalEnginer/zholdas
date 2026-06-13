@@ -48,7 +48,7 @@ const markerIcon = L.divIcon({
 
 function MapClickTarget({ onPick }: { onPick: (coordinate: typeof ALMATY) => void }) {
   useMapEvents({
-    click: e => onPick({ latitude: e.latlng.lat, longitude: e.latlng.lng }),
+    click: (e: any) => onPick({ latitude: e.latlng.lat, longitude: e.latlng.lng }),
   });
   return null;
 }
