@@ -19,9 +19,12 @@ const ROLES: AppRole[] = ['user', 'moderator', 'admin'];
 
 export default function AdminRolesScreen() {
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const shadowColor = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.05;
 
   useEffect(() => {
     loadProfiles();
@@ -72,6 +75,37 @@ export default function AdminRolesScreen() {
     setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, role } : p));
   }
 
+  const getRoleColors = (role: AppRole, isActive: boolean) => {
+    if (!isActive) {
+      return {
+        bg: 'transparent',
+        border: theme.border,
+        text: theme.subtext,
+      };
+    }
+    switch (role) {
+      case 'admin':
+        return {
+          bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+          border: theme.success,
+          text: theme.success,
+        };
+      case 'moderator':
+        return {
+          bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+          border: theme.warning,
+          text: theme.warning,
+        };
+      case 'user':
+      default:
+        return {
+          bg: theme.accentLight,
+          border: theme.accent,
+          text: theme.accent,
+        };
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -94,32 +128,47 @@ export default function AdminRolesScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {profiles.map(profile => (
-          <View key={profile.id} style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View
+            key={profile.id}
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                shadowColor,
+                shadowOpacity,
+              }
+            ]}
+          >
             <AvatarImage value={profile.avatar} size={42} backgroundColor={theme.accentLight} textSize={24} />
             <View style={styles.info}>
               <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
               <Text style={[styles.email, { color: theme.subtext }]}>{profile.email || profile.id}</Text>
               {isProtectedPeerAdmin(profile) ? (
-                <Text style={[styles.protectedText, { color: '#E07B2C' }]}>Другой admin защищен от изменения роли</Text>
+                <Text style={[styles.protectedText, { color: theme.warning }]}>Другой admin защищен от изменения роли</Text>
               ) : null}
               <View style={styles.roles}>
-                {ROLES.map(role => (
-                  <TouchableOpacity
-                    key={role}
-                    disabled={isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin')}
-                    style={[
-                      styles.roleBtn,
-                      {
-                        borderColor: profile.role === role ? theme.accent : theme.border,
-                        backgroundColor: profile.role === role ? theme.accentLight : 'transparent',
-                        opacity: isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
-                      },
-                    ]}
-                    onPress={() => setRole(profile, role)}
-                  >
-                    <Text style={[styles.roleText, { color: profile.role === role ? theme.accent : theme.subtext }]}>{role}</Text>
-                  </TouchableOpacity>
-                ))}
+                {ROLES.map(role => {
+                  const isActive = profile.role === role;
+                  const colors = getRoleColors(role, isActive);
+                  return (
+                    <TouchableOpacity
+                      key={role}
+                      disabled={isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin')}
+                      style={[
+                        styles.roleBtn,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: colors.bg,
+                          opacity: isProtectedPeerAdmin(profile) || (profile.id === user?.id && role !== 'admin') ? 0.5 : 1,
+                        },
+                      ]}
+                      onPress={() => setRole(profile, role)}
+                    >
+                      <Text style={[styles.roleText, { color: colors.text }]}>{role}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>
@@ -133,13 +182,16 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { fontSize: 18, fontWeight: '800' },
-  content: { padding: 16, paddingBottom: 36 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
+  content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 720, alignSelf: 'center' },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12,
+    shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 1
+  },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '800' },
   email: { fontSize: 12, marginTop: 3 },
   protectedText: { fontSize: 12, marginTop: 6, fontWeight: '700' },
-  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  roleBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
+  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  roleBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   roleText: { fontSize: 12, fontWeight: '800' },
 });

@@ -8,22 +8,24 @@ import L from 'leaflet';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Event, EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, categoryLabels, eventStatusLabels } from '../data/mockEvents';
+import { categoryEmojis, eventStatusLabels } from '../data/mockEvents';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance, openRoute } from '../hooks/useLocation';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 const ALMATY_CENTER: [number, number] = [43.238, 76.945];
 
-const MAP_FILTERS: Array<{ key: 'all' | EventCategory; label: string; emoji: string }> = [
-  { key: 'all', label: 'Все', emoji: '•' },
-  { key: 'mountains', label: 'Горы', emoji: '⛰️' },
-  { key: 'theatre', label: 'Театр', emoji: '🎭' },
-  { key: 'restaurant', label: 'Ресторан', emoji: '🍽️' },
-  { key: 'sport', label: 'Спорт', emoji: '⚽' },
-  { key: 'other', label: 'Другое', emoji: '✨' },
+const MAP_FILTERS: Array<{ key: 'all' | EventCategory }> = [
+  { key: 'all' },
+  { key: 'mountains' },
+  { key: 'theatre' },
+  { key: 'restaurant' },
+  { key: 'sport' },
+  { key: 'other' },
 ];
 
 function eventIcon(event: Event, joined: boolean) {
@@ -37,9 +39,9 @@ function eventIcon(event: Event, joined: boolean) {
         <div style="
           width: 40px; height: 40px; border-radius: 20px 20px 20px 6px;
           transform: rotate(-45deg);
-          background: ${joined ? '#4F46E5' : '#ffffff'};
-          border: 3px solid #4F46E5;
-          box-shadow: 0 12px 28px rgba(16, 24, 40, 0.22);
+          background: ${joined ? '#6366F1' : '#ffffff'};
+          border: 3px solid #6366F1;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
           display: flex; align-items: center; justify-content: center;
         ">
           <span style="
@@ -47,7 +49,6 @@ function eventIcon(event: Event, joined: boolean) {
             display: block;
             font-size: 18px;
             line-height: 1;
-            filter: ${joined ? 'grayscale(0)' : 'none'};
           ">${categoryEmojis[event.category]}</span>
         </div>
       </div>
@@ -69,11 +70,25 @@ function FitRoute({ route }: { route: Array<[number, number]> }) {
 
 export default function MapScreen() {
   const navigation = useNavigation<Nav>();
+  const { theme, isDark } = useTheme();
   const { events, joinEvent, leaveEvent, isJoined } = useEvents();
   const { user } = useAuth();
   const userLocation = useLocation();
+  const { t } = useLanguage();
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
   const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
+
+  const getCategoryLabel = (key: 'all' | EventCategory) => {
+    switch (key) {
+      case 'all': return t('filterAll');
+      case 'mountains': return t('filterMountains');
+      case 'theatre': return t('filterTheatre');
+      case 'restaurant': return t('filterRestaurant');
+      case 'sport': return t('filterSport');
+      case 'other': return t('filterOther');
+      default: return key;
+    }
+  };
 
   const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
   const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
@@ -88,7 +103,7 @@ export default function MapScreen() {
   async function handleJoin(event: Event) {
     if (!user) return;
     if (!isJoined(event.id, user.id) && (event.status ?? 'active') !== 'active') {
-      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      Alert.alert('', t('joinErrorClosed'));
       return;
     }
     if (isJoined(event.id, user.id)) await leaveEvent(event.id, user.id);
@@ -96,22 +111,22 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <MapContainer center={ALMATY_CENTER} zoom={12} style={leafletMapStyle} zoomControl={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url={isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'}
         />
         {userLocation && (
           <CircleMarker
             center={[userLocation.latitude, userLocation.longitude]}
             radius={8}
-            pathOptions={{ color: '#2F80ED', fillColor: '#2F80ED', fillOpacity: 0.8 }}
+            pathOptions={{ color: theme.accent, fillColor: theme.accent, fillOpacity: 0.8 }}
           />
         )}
         {routeLine.length > 0 && (
           <>
-            <Polyline positions={routeLine} pathOptions={{ color: '#2E9E5D', weight: 5 }} />
+            <Polyline positions={routeLine} pathOptions={{ color: theme.success, weight: 5 }} />
             <FitRoute route={routeLine} />
           </>
         )}
@@ -125,42 +140,53 @@ export default function MapScreen() {
             >
               <Popup>
                 <View style={styles.popup}>
-                  <Text style={styles.popupCategory}>{categoryEmojis[event.category]} {categoryLabels[event.category]}</Text>
-                  <Text style={styles.popupTitle}>{event.title}</Text>
-                  <Text style={styles.popupMeta}>{event.datetime}</Text>
-                  {!!event.address && <Text style={styles.popupMeta}>{event.address}</Text>}
-                  {userLocation && (
-                    <Text style={styles.popupMeta}>{getDistance(userLocation, event.coordinate)} от вас</Text>
+                  <Text style={[styles.popupCategory, { color: theme.accent }]}>
+                    {getCategoryLabel(event.category)}
+                  </Text>
+                  <Text style={[styles.popupTitle, { color: theme.text }]}>{event.title}</Text>
+                  <Text style={[styles.popupMeta, { color: theme.subtext }]}>{event.datetime}</Text>
+                  {!!event.address && (
+                    <Text style={[styles.popupMeta, { color: theme.subtext }]}>{event.address}</Text>
                   )}
-                  <Text style={styles.popupMeta}>
-                    {event.participantsCount}/{event.maxParticipants} участников
+                  {userLocation && (
+                    <Text style={[styles.popupMeta, { color: theme.accent }]}>
+                      {getDistance(userLocation, event.coordinate)} {t('kmFromYou')}
+                    </Text>
+                  )}
+                  <Text style={[styles.popupMeta, { color: theme.subtext }]}>
+                    {t('participants')}: {event.participantsCount}/{event.maxParticipants}
                   </Text>
                   {(event.status ?? 'active') !== 'active' && (
-                    <Text style={styles.popupStatus}>{eventStatusLabels[event.status ?? 'active']}</Text>
+                    <Text style={[styles.popupStatus, { color: theme.danger }]}>
+                      {eventStatusLabels[event.status ?? 'active']}
+                    </Text>
                   )}
                   <View style={styles.popupActions}>
                     <TouchableOpacity
-                      style={styles.secondaryButton}
+                      style={[styles.secondaryButton, { backgroundColor: theme.accentLight }]}
                       onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}
                     >
-                      <Text style={styles.secondaryButtonText}>Подробнее</Text>
+                      <Text style={[styles.secondaryButtonText, { color: theme.accentText }]}>{t('detailsBtn')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.routeButton}
+                      style={[styles.routeButton, { backgroundColor: theme.inputBg }]}
                       onPress={() => {
                         setRouteTargetId(event.id);
                         openRoute(event.coordinate, event.title, userLocation);
                       }}
                     >
-                      <Text style={styles.routeButtonText}>Маршрут</Text>
+                      <Text style={[styles.routeButtonText, { color: theme.text }]}>{t('routeBtn')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.joinButton, joined && styles.joinButtonActive]}
-                      onPress={() => handleJoin(event).catch(e => Alert.alert('Ошибка', e.message))}
+                      style={[
+                        styles.joinButton,
+                        { borderColor: theme.accent, backgroundColor: joined ? theme.accent : 'transparent' },
+                      ]}
+                      onPress={() => handleJoin(event).catch(e => Alert.alert(t('error'), e.message))}
                       disabled={!user || (!joined && (event.status ?? 'active') !== 'active')}
                     >
-                      <Text style={[styles.joinButtonText, joined && styles.joinButtonTextActive]}>
-                        {joined ? 'Вы в группе' : 'Присоединиться'}
+                      <Text style={[styles.joinButtonText, { color: joined ? '#FFFFFF' : theme.accent }]}>
+                        {joined ? t('joined') : t('joinBtn')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -171,46 +197,66 @@ export default function MapScreen() {
         })}
       </MapContainer>
 
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View>
-          <Text style={styles.headerTitle}>Жолдас</Text>
-          <Text style={styles.headerSubtitle}>{filteredEvents.length} ивента в Алматы</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Жолдас</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
+            {filteredEvents.length} {t('eventsCount')}
+          </Text>
         </View>
       </View>
 
       <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {MAP_FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, mapFilter === f.key && styles.filterChipActive]}
-              onPress={() => setMapFilter(f.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.filterEmoji}>{f.emoji}</Text>
-              <Text style={[styles.filterLabel, mapFilter === f.key && styles.filterLabelActive]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
+          {MAP_FILTERS.map(f => {
+            const isActive = mapFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive ? theme.accent : theme.card,
+                    borderColor: isActive ? theme.accent : theme.border,
+                  },
+                ]}
+                onPress={() => setMapFilter(f.key)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    { color: isActive ? '#FFFFFF' : theme.text },
+                  ]}
+                >
+                  {getCategoryLabel(f.key)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
       {routeTarget && (
-        <View style={styles.routeBanner}>
-          <Text style={styles.routeBannerText} numberOfLines={1}>
-            Маршрут: {routeTarget.title}
+        <View style={[styles.routeBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.routeBannerText, { color: theme.success }]} numberOfLines={1}>
+            {t('routeBtn')}: {routeTarget.title}
           </Text>
-          <TouchableOpacity onPress={() => setRouteTargetId(null)} style={styles.routeClose}>
-            <Text style={styles.routeCloseText}>×</Text>
+          <TouchableOpacity
+            onPress={() => setRouteTargetId(null)}
+            style={[styles.routeClose, { backgroundColor: theme.inputBg }]}
+          >
+            <Text style={[styles.routeCloseText, { color: theme.text }]}>x</Text>
           </TouchableOpacity>
         </View>
       )}
 
       <TouchableOpacity
-        style={styles.createFab}
+        style={[styles.createFab, { backgroundColor: theme.accent }]}
         onPress={() => navigation.navigate('CreateEvent')}
         activeOpacity={0.85}
       >
-        <Text style={styles.createFabText}>+ Создать</Text>
+        <Text style={styles.createFabText}>+ {t('createEventBtn')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -219,74 +265,73 @@ export default function MapScreen() {
 const leafletMapStyle: React.CSSProperties = { height: '100%', width: '100%' };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EEF2F6' },
+  container: { flex: 1 },
   header: {
-    position: 'absolute', top: 18, left: 16, right: 16,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: 14,
+    position: 'absolute', top: 16, left: 16, right: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(228,231,236,0.9)',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     maxWidth: 420,
-    shadowColor: '#101828',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    zIndex: 999,
   },
-  headerTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
-  headerSubtitle: { fontSize: 12, color: '#667085', marginTop: 2 },
-  filterBar: { position: 'absolute', top: 92, left: 0, right: 0 },
+  headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
+  headerSubtitle: { fontSize: 12, marginTop: 2, fontWeight: '500' },
+  filterBar: { position: 'absolute', top: 92, left: 0, right: 0, zIndex: 999 },
   filterScroll: { paddingHorizontal: 16, gap: 8 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 1, borderColor: 'rgba(228,231,236,0.95)',
-    shadowColor: '#101828',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
   },
-  filterChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
-  filterEmoji: { fontSize: 14 },
-  filterLabel: { fontSize: 12, color: '#475467', fontWeight: '700' },
-  filterLabelActive: { color: '#FFF' },
+  filterLabel: { fontSize: 12, fontWeight: '600' },
   routeBanner: {
-    position: 'absolute', top: 140, left: 16, right: 16,
-    backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 16,
-    paddingHorizontal: 14, paddingVertical: 12,
+    position: 'absolute', top: 148, left: 16, right: 16,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 12,
     flexDirection: 'row', alignItems: 'center', gap: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    zIndex: 999,
   },
-  routeBannerText: { flex: 1, color: '#2E9E5D', fontSize: 13, fontWeight: '800' },
+  routeBannerText: { flex: 1, fontSize: 13, fontWeight: '700' },
   routeClose: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#EAF7EF', alignItems: 'center', justifyContent: 'center',
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
   },
-  routeCloseText: { color: '#2E9E5D', fontSize: 20, fontWeight: '700', lineHeight: 22 },
+  routeCloseText: { fontSize: 16, fontWeight: '700', lineHeight: 18 },
   createFab: {
     position: 'absolute', bottom: 28, right: 16,
-    backgroundColor: '#4F46E5', borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 18, paddingVertical: 12,
-    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, shadowRadius: 10,
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15, shadowRadius: 10,
+    zIndex: 999,
   },
-  createFabText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
-  popup: { width: 230, gap: 6 },
-  popupCategory: { color: '#4338CA', fontSize: 12, fontWeight: '800' },
-  popupTitle: { color: '#111827', fontSize: 16, fontWeight: '800' },
-  popupMeta: { color: '#475467', fontSize: 12 },
-  popupStatus: { color: '#D92D20', fontSize: 12, fontWeight: '800' },
-  popupActions: { gap: 8, marginTop: 8 },
-  secondaryButton: { backgroundColor: '#EEF2FF', borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
-  secondaryButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '800' },
-  routeButton: { backgroundColor: '#EAF7EF', borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
-  routeButtonText: { color: '#2E9E5D', fontSize: 13, fontWeight: '800' },
+  createFabText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  popup: { width: 240, padding: 4 },
+  popupCategory: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3, marginBottom: 2 },
+  popupTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2, marginBottom: 4 },
+  popupMeta: { fontSize: 11, fontWeight: '500', marginBottom: 2 },
+  popupStatus: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  popupActions: { gap: 6, marginTop: 10 },
+  secondaryButton: { borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  secondaryButtonText: { fontSize: 12, fontWeight: '700' },
+  routeButton: { borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  routeButtonText: { fontSize: 12, fontWeight: '700' },
   joinButton: {
-    borderRadius: 12, paddingVertical: 9, alignItems: 'center',
-    borderWidth: 2, borderColor: '#4F46E5',
+    borderRadius: 8, paddingVertical: 8, alignItems: 'center',
+    borderWidth: 1.5,
   },
-  joinButtonActive: { backgroundColor: '#4F46E5' },
-  joinButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '800' },
-  joinButtonTextActive: { color: '#FFF' },
+  joinButtonText: { fontSize: 12, fontWeight: '700' },
 });

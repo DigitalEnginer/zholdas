@@ -46,7 +46,7 @@ const categoryEmojis: Record<string, string> = {
 export default function UserProfileScreen() {
   const route = useRoute<ProfileRoute>();
   const { userId, userName, userAvatar } = route.params;
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { user: currentUser } = useAuth();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -327,6 +327,9 @@ export default function UserProfileScreen() {
     );
   }
 
+  const shadowHex = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.04;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -354,99 +357,132 @@ export default function UserProfileScreen() {
             </Text>
           </View>
 
-          {!isOwnProfile && currentUser && (
-            <TouchableOpacity
-              style={[
-                styles.followBtn,
-                isFollowing
-                  ? { backgroundColor: theme.card, borderColor: theme.border }
-                  : { backgroundColor: theme.accent, borderColor: theme.accent },
-              ]}
-              onPress={toggleFollow}
-              disabled={followLoading}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.followBtnText, { color: isFollowing ? theme.subtext : '#FFF' }]}>
-                {isFollowing ? '✓ Вы подписаны' : '+ Подписаться'}
-              </Text>
-            </TouchableOpacity>
-          )}
+          {/* Action Buttons Section */}
+          <View style={styles.actionSection}>
+            <View style={styles.mainActionsRow}>
+              {!isOwnProfile && currentUser && (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryActionBtn,
+                    isFollowing
+                      ? { backgroundColor: theme.card, borderColor: theme.border }
+                      : { backgroundColor: theme.accent, borderColor: theme.accent },
+                  ]}
+                  onPress={toggleFollow}
+                  disabled={followLoading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.primaryActionBtnText, { color: isFollowing ? theme.text : '#FFF' }]}>
+                    {isFollowing ? '✓ Подписка' : 'Подписаться'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-          {!isOwnProfile && currentUser && !isBlocked && (
-            <TouchableOpacity
-              style={[styles.socialBtn, { borderColor: theme.accent }]}
-              onPress={friendStatus === 'incoming' ? acceptFriendRequest : friendStatus === 'none' ? sendFriendRequest : undefined}
-              disabled={friendStatus === 'outgoing' || friendStatus === 'accepted'}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.socialBtnText, { color: theme.accent }]}>
-                {friendStatus === 'accepted'
-                  ? '✓ В друзьях'
-                  : friendStatus === 'outgoing'
-                    ? 'Заявка отправлена'
-                    : friendStatus === 'incoming'
-                      ? 'Принять заявку'
-                      : '+ В друзья'}
-              </Text>
-            </TouchableOpacity>
-          )}
+              {!isOwnProfile && currentUser && !isBlocked && (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryActionBtn,
+                    friendStatus === 'accepted'
+                      ? { backgroundColor: theme.card, borderColor: theme.border }
+                      : { backgroundColor: theme.accent, borderColor: theme.accent }
+                  ]}
+                  onPress={friendStatus === 'incoming' ? acceptFriendRequest : friendStatus === 'none' ? sendFriendRequest : undefined}
+                  disabled={friendStatus === 'outgoing' || friendStatus === 'accepted'}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.primaryActionBtnText, { color: friendStatus === 'accepted' ? theme.text : '#FFF' }]}>
+                    {friendStatus === 'accepted'
+                      ? '✓ В друзьях'
+                      : friendStatus === 'outgoing'
+                        ? 'Отправлено'
+                        : friendStatus === 'incoming'
+                          ? 'Принять'
+                          : 'В друзья'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-          {!isOwnProfile && canModerate && (
-            <TouchableOpacity
-              style={[
-                styles.banBtn,
-                isBanned
-                  ? { backgroundColor: theme.card, borderColor: theme.border }
-                  : { backgroundColor: '#D92D20', borderColor: '#D92D20' },
-              ]}
-              onPress={isBanned ? unbanUser : banUser}
-              disabled={banLoading}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.banBtnText, { color: isBanned ? theme.subtext : '#FFF' }]}>
-                {isBanned ? 'Разбанить' : 'Забанить'}
-              </Text>
-            </TouchableOpacity>
-          )}
+            {/* Secondary Actions */}
+            <View style={styles.secondaryActionsRow}>
+              {!isOwnProfile && currentUser && (
+                <TouchableOpacity
+                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                  onPress={toggleBlock}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.secondaryActionBtnText, { color: isBlocked ? theme.accent : theme.subtext }]}>
+                    {isBlocked ? 'Разблокировать' : 'Блок'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-          {!isOwnProfile && currentUser && (
-            <TouchableOpacity
-              style={[styles.reportBtn, { borderColor: theme.border }]}
-              onPress={reportUser}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.reportBtnText, { color: theme.subtext }]}>Пожаловаться</Text>
-            </TouchableOpacity>
-          )}
+              {!isOwnProfile && currentUser && (
+                <TouchableOpacity
+                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                  onPress={reportUser}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.secondaryActionBtnText, { color: theme.subtext }]}>Жалоба</Text>
+                </TouchableOpacity>
+              )}
 
-          {!isOwnProfile && currentUser && (
-            <TouchableOpacity
-              style={[styles.blockBtn, { borderColor: theme.border }]}
-              onPress={toggleBlock}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.blockBtnText, { color: isBlocked ? theme.accent : theme.subtext }]}>
-                {isBlocked ? 'Разблокировать' : 'Заблокировать'}
-              </Text>
-            </TouchableOpacity>
-          )}
+              {!isOwnProfile && canModerate && (
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryActionBtn,
+                    { borderColor: theme.danger, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FFF1F1' }
+                  ]}
+                  onPress={isBanned ? unbanUser : banUser}
+                  disabled={banLoading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.secondaryActionBtnText, { color: theme.danger }]}>
+                    {isBanned ? 'Разбанить' : 'Бан'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
 
-        <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
+        {/* Stats Row Redesigned into Grid Tiles */}
+        <View style={styles.statsRowContainer}>
           {[
             { label: 'Ивентов', value: profile?.eventsJoined ?? 0 },
             { label: 'Подписчики', value: followersCount },
             { label: 'Отзывов', value: profile?.reviewsCount ?? 0 },
-          ].map((s, i) => (
-            <View key={s.label} style={[styles.stat, i < 2 && { borderRightWidth: 1, borderRightColor: theme.border }]}>
-              <Text style={[styles.statVal, { color: theme.accent }]}>{s.value}</Text>
-              <Text style={[styles.statLabel, { color: theme.subtext }]}>{s.label}</Text>
+          ].map((stat) => (
+            <View
+              key={stat.label}
+              style={[
+                styles.statTile,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  shadowColor: shadowHex,
+                  shadowOpacity,
+                }
+              ]}
+            >
+              <Text style={[styles.statValue, { color: theme.accent }]}>{stat.value}</Text>
+              <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
             </View>
           ))}
         </View>
 
         {events.length > 0 && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View
+            style={[
+              styles.section,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                shadowColor: shadowHex,
+                shadowOpacity,
+              }
+            ]}
+          >
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Ивенты участника</Text>
             {events.map((event, i) => (
               <View key={event.id} style={[styles.eventRow, { borderTopColor: theme.border }, i === 0 && { borderTopWidth: 0 }]}>
@@ -455,15 +491,25 @@ export default function UserProfileScreen() {
                   <Text style={[styles.eventTitle, { color: theme.text }]}>{event.title}</Text>
                   <Text style={[styles.eventTime, { color: theme.subtext }]}>{event.datetime}</Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: theme.accentLight }]}>
-                  <Text style={[styles.badgeText, { color: theme.accent }]}>👥 {event.participantsCount}</Text>
+                <View style={[styles.badge, { backgroundColor: theme.accentLight, borderColor: theme.border, borderWidth: 1 }]}>
+                  <Text style={[styles.badgeText, { color: theme.accent }]}>{event.participantsCount} чел.</Text>
                 </View>
               </View>
             ))}
           </View>
         )}
 
-        <View style={[styles.section, { backgroundColor: theme.card }]}>
+        <View
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              shadowColor: shadowHex,
+              shadowOpacity,
+            }
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Отзывы</Text>
           {reviews.length === 0 ? (
             <View style={[styles.emptyReviews, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
@@ -497,65 +543,60 @@ export default function UserProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { width: '100%', maxWidth: 860, alignSelf: 'center', paddingBottom: 40 },
-  hero: { alignItems: 'center', paddingVertical: 32 },
+  hero: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 16 },
   avatar: {
     width: 90, height: 90, borderRadius: 45,
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 14, borderWidth: 3,
   },
   name: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  bio: { fontSize: 14, marginBottom: 12, textAlign: 'center', paddingHorizontal: 32 },
+  bio: { fontSize: 14, marginBottom: 12, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 16 },
   star: { fontSize: 20, color: '#DDD' },
   starFilled: { color: '#F5A623' },
   ratingVal: { fontSize: 16, fontWeight: '700', marginLeft: 6 },
-  followBtn: {
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 24, paddingVertical: 9,
+  actionSection: { width: '100%', maxWidth: 420, gap: 10, marginTop: 6, paddingHorizontal: 16 },
+  mainActionsRow: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
+  primaryActionBtn: {
+    flex: 1, borderWidth: 1.5, borderRadius: 16,
+    paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
   },
-  followBtnText: { fontSize: 14, fontWeight: '700' },
-  socialBtn: {
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 20, paddingVertical: 8,
-    marginTop: 10,
+  primaryActionBtnText: { fontSize: 14, fontWeight: '700' },
+  secondaryActionsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 4 },
+  secondaryActionBtn: {
+    flex: 1, borderWidth: 1.5, borderRadius: 14,
+    paddingVertical: 9, alignItems: 'center', justifyContent: 'center',
   },
-  socialBtnText: { fontSize: 13, fontWeight: '800' },
-  banBtn: {
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 24, paddingVertical: 9,
-    marginTop: 10,
+  secondaryActionBtnText: { fontSize: 12, fontWeight: '700' },
+  statsRowContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 20,
+    marginTop: 8,
   },
-  banBtnText: { fontSize: 14, fontWeight: '700' },
-  reportBtn: {
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 20, paddingVertical: 8,
-    marginTop: 10,
+  statTile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2,
   },
-  reportBtnText: { fontSize: 13, fontWeight: '700' },
-  blockBtn: {
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 20, paddingVertical: 8,
-    marginTop: 10,
-  },
-  blockBtnText: { fontSize: 13, fontWeight: '700' },
-  statsRow: {
-    flexDirection: 'row', marginHorizontal: 16, marginBottom: 12,
-    borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
-  },
-  stat: { flex: 1, alignItems: 'center', paddingVertical: 16 },
-  statVal: { fontSize: 22, fontWeight: '800' },
+  statValue: { fontSize: 22, fontWeight: '800' },
   statLabel: { fontSize: 11, marginTop: 2 },
   section: {
     marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
+    fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
   },
   eventRow: {

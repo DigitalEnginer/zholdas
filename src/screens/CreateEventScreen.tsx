@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { RootStackParamList, EventCategory, GenderFilter } from '../types';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { categoryEmojis, categoryLabels } from '../data/mockEvents';
 import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 import { userMessageFromModerationError, validateEventContent } from '../lib/contentModeration';
@@ -33,6 +34,7 @@ export default function CreateEventScreen() {
   const route = useRoute<CreateEventRoute>();
   const { createEvent, updateEvent, events } = useEvents();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
   const eventId = route.params?.eventId;
   const editingEvent = eventId ? events.find(e => e.id === eventId) : undefined;
   const mapRef = useRef<MapView>(null);
@@ -52,6 +54,7 @@ export default function CreateEventScreen() {
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   React.useEffect(() => {
     navigation.setOptions({ title: eventId ? 'Редактировать ивент' : 'Новый ивент' });
@@ -189,94 +192,154 @@ export default function CreateEventScreen() {
     }
   }
 
+  const shadowHex = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.04;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Категория */}
           <View style={styles.section}>
-            <Text style={styles.label}>Категория</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.row}>
-                {CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[styles.catBtn, category === cat && styles.catBtnActive]}
-                    onPress={() => setCategory(cat)}
-                  >
-                    <Text style={styles.catEmoji}>{categoryEmojis[cat]}</Text>
-                    <Text style={[styles.catLabel, category === cat && styles.catLabelActive]}>
-                      {categoryLabels[cat]}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <Text style={[styles.label, { color: theme.subtext }]}>Категория *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+              {CATEGORIES.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.catBtn,
+                    {
+                      backgroundColor: category === cat ? theme.accentLight : theme.card,
+                      borderColor: category === cat ? theme.accent : theme.border,
+                      shadowColor: shadowHex,
+                      shadowOpacity: category === cat ? 0.05 : 0,
+                    }
+                  ]}
+                  onPress={() => setCategory(cat)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.catLabel, { color: category === cat ? theme.accent : theme.text }]}>
+                    {categoryEmojis[cat]} {categoryLabels[cat]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
 
           {/* Основные поля */}
           <View style={styles.section}>
-            <Text style={styles.label}>Название *</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Название *</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'title' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               placeholder="Напр. Поход на Кок-Жайляу"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={title}
               onChangeText={setTitle}
               maxLength={60}
+              onFocus={() => setFocusedInput('title')}
+              onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={styles.label}>Описание</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Описание</Text>
             <TextInput
-              style={[styles.input, styles.inputMulti]}
+              style={[
+                styles.input,
+                styles.inputMulti,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'description' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               placeholder="Расскажи подробнее об ивенте..."
-              placeholderTextColor="#BBB"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
               maxLength={300}
+              onFocus={() => setFocusedInput('description')}
+              onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={styles.label}>Когда? *</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Когда? *</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'datetime' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               placeholder="Напр. Воскресенье, 08:00"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={datetime}
               onChangeText={setDatetime}
               maxLength={40}
+              onFocus={() => setFocusedInput('datetime')}
+              onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={styles.label}>Макс. участников</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Макс. участников</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'maxParticipants' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               placeholder="10"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={maxParticipants}
               onChangeText={setMaxParticipants}
               keyboardType="number-pad"
               maxLength={3}
+              onFocus={() => setFocusedInput('maxParticipants')}
+              onBlur={() => setFocusedInput(null)}
             />
           </View>
 
           {/* Место */}
           <View style={styles.section}>
-            <Text style={styles.label}>Место</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Место</Text>
 
             <View style={styles.addressRow}>
               <TextInput
-                style={[styles.input, styles.addressInput]}
+                style={[
+                  styles.input,
+                  styles.addressInput,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: focusedInput === 'address' ? theme.accent : theme.border,
+                    color: theme.text,
+                  }
+                ]}
                 placeholder="Введи адрес, напр. ул. Абая 10"
-                placeholderTextColor="#BBB"
+                placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                 value={addressInput}
                 onChangeText={setAddressInput}
                 returnKeyType="search"
                 onSubmitEditing={handleGeocode}
+                onFocus={() => setFocusedInput('address')}
+                onBlur={() => setFocusedInput(null)}
               />
               <TouchableOpacity
-                style={[styles.geocodeBtn, geocoding && styles.geocodeBtnDisabled]}
+                style={[
+                  styles.geocodeBtn,
+                  { backgroundColor: theme.accent },
+                  geocoding && { backgroundColor: theme.accentLight }
+                ]}
                 onPress={handleGeocode}
                 disabled={geocoding}
                 activeOpacity={0.8}
@@ -289,12 +352,12 @@ export default function CreateEventScreen() {
             </View>
 
             {address ? (
-              <Text style={styles.addressFound}>📍 {address}</Text>
+              <Text style={[styles.addressFound, { color: theme.accent }]}>📍 {address}</Text>
             ) : (
-              <Text style={styles.hint}>Или нажми на карту чтобы выбрать место вручную</Text>
+              <Text style={[styles.hint, { color: theme.subtext }]}>Или нажми на карту чтобы выбрать место вручную</Text>
             )}
 
-            <View style={styles.mapWrap}>
+            <View style={[styles.mapWrap, { borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
               <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -305,68 +368,93 @@ export default function CreateEventScreen() {
                   setAddress('');
                 }}
               >
-                <Marker coordinate={coordinate} pinColor="#4F46E5" />
+                <Marker coordinate={coordinate} pinColor={theme.accent} />
               </MapView>
             </View>
-            <Text style={styles.coords}>
+            <Text style={[styles.coords, { color: theme.subtext }]}>
               {coordinate.latitude.toFixed(4)}, {coordinate.longitude.toFixed(4)}
             </Text>
           </View>
 
           {/* Аудитория */}
           <View style={styles.section}>
-            <Text style={styles.label}>Аудитория</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Аудитория</Text>
 
-            <Text style={styles.sublabel}>Для кого</Text>
+            <Text style={[styles.sublabel, { color: theme.subtext }]}>Для кого</Text>
             <View style={styles.row}>
               {GENDER_FILTERS.map(opt => (
                 <TouchableOpacity
                   key={opt.key}
-                  style={[styles.filterBtn, genderFilter === opt.key && styles.filterBtnActive]}
+                  style={[
+                    styles.filterBtn,
+                    {
+                      backgroundColor: genderFilter === opt.key ? theme.accentLight : theme.card,
+                      borderColor: genderFilter === opt.key ? theme.accent : theme.border,
+                    }
+                  ]}
                   onPress={() => setGenderFilter(opt.key)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.filterEmoji}>{opt.emoji}</Text>
-                  <Text style={[styles.filterLabel, genderFilter === opt.key && styles.filterLabelActive]}>
-                    {opt.label}
+                  <Text style={[styles.filterLabel, { color: genderFilter === opt.key ? theme.accent : theme.text }]}>
+                    {opt.emoji} {opt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.sublabel}>Возрастной диапазон (необязательно)</Text>
+            <Text style={[styles.sublabel, { color: theme.subtext }]}>Возрастной диапазон (необязательно)</Text>
             <View style={styles.ageRow}>
               <View style={styles.ageField}>
-                <Text style={styles.ageHint}>от</Text>
+                <Text style={[styles.ageHint, { color: theme.subtext }]}>от</Text>
                 <TextInput
-                  style={[styles.input, styles.ageInput]}
+                  style={[
+                    styles.input,
+                    styles.ageInput,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: focusedInput === 'minAge' ? theme.accent : theme.border,
+                      color: theme.text,
+                    }
+                  ]}
                   placeholder="18"
-                  placeholderTextColor="#BBB"
+                  placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                   value={minAge}
                   onChangeText={setMinAge}
                   keyboardType="number-pad"
                   maxLength={3}
+                  onFocus={() => setFocusedInput('minAge')}
+                  onBlur={() => setFocusedInput(null)}
                 />
               </View>
-              <Text style={styles.ageDash}>—</Text>
+              <Text style={[styles.ageDash, { color: theme.border }]}>—</Text>
               <View style={styles.ageField}>
-                <Text style={styles.ageHint}>до</Text>
+                <Text style={[styles.ageHint, { color: theme.subtext }]}>до</Text>
                 <TextInput
-                  style={[styles.input, styles.ageInput]}
+                  style={[
+                    styles.input,
+                    styles.ageInput,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: focusedInput === 'maxAge' ? theme.accent : theme.border,
+                      color: theme.text,
+                    }
+                  ]}
                   placeholder="99"
-                  placeholderTextColor="#BBB"
+                  placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                   value={maxAge}
                   onChangeText={setMaxAge}
                   keyboardType="number-pad"
                   maxLength={3}
+                  onFocus={() => setFocusedInput('maxAge')}
+                  onBlur={() => setFocusedInput(null)}
                 />
               </View>
-              <Text style={styles.ageUnit}>лет</Text>
+              <Text style={[styles.ageUnit, { color: theme.subtext }]}>лет</Text>
             </View>
 
             {(genderFilter !== 'all' || minAge || maxAge) && (
-              <View style={styles.audienceBadge}>
-                <Text style={styles.audienceText}>
+              <View style={[styles.audienceBadge, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
+                <Text style={[styles.audienceText, { color: theme.accent }]}>
                   {genderFilter === 'male' ? '👨 Мужчины' : genderFilter === 'female' ? '👩 Женщины' : '👥 Все'}
                   {(minAge || maxAge) ? ` · ${minAge || '?'}–${maxAge || '?'} лет` : ''}
                 </Text>
@@ -376,28 +464,43 @@ export default function CreateEventScreen() {
 
           {/* Фото */}
           <View style={styles.section}>
-            <Text style={styles.label}>Фото (необязательно)</Text>
-            <TouchableOpacity style={styles.photoBtn} onPress={pickImage} disabled={uploading} activeOpacity={0.8}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Фото (необязательно)</Text>
+            <TouchableOpacity
+              style={[
+                styles.photoBtn,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                }
+              ]}
+              onPress={pickImage}
+              disabled={uploading}
+              activeOpacity={0.8}
+            >
               {uploading ? (
-                <ActivityIndicator color="#4F46E5" />
+                <ActivityIndicator color={theme.accent} />
               ) : imageUri ? (
                 <Image source={{ uri: imageUri }} style={styles.photoPreview} />
               ) : (
                 <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoIcon}>📷</Text>
-                  <Text style={styles.photoHint}>Добавить фото</Text>
+                  <Text style={[styles.photoIcon, { color: theme.subtext }]}>📷</Text>
+                  <Text style={[styles.photoHint, { color: theme.subtext }]}>Добавить фото</Text>
                 </View>
               )}
             </TouchableOpacity>
             {imageUri && (
               <TouchableOpacity onPress={removeEventPhoto} style={styles.removePhoto}>
-                <Text style={styles.removePhotoText}>✕ Удалить фото</Text>
+                <Text style={[styles.removePhotoText, { color: theme.danger }]}>✕ Удалить фото</Text>
               </TouchableOpacity>
             )}
           </View>
 
           <TouchableOpacity
-            style={[styles.createBtn, (loading || uploading) && styles.createBtnDisabled]}
+            style={[
+              styles.createBtn,
+              { backgroundColor: theme.accent },
+              (loading || uploading) && { backgroundColor: theme.accentLight }
+            ]}
             onPress={handleCreate}
             disabled={loading || uploading}
             activeOpacity={0.85}
@@ -415,82 +518,74 @@ export default function CreateEventScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  container: { flex: 1 },
   flex: { flex: 1 },
   section: { padding: 16, paddingBottom: 0 },
   label: {
-    fontSize: 13, fontWeight: '700', color: '#667085',
+    fontSize: 12, fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 8, marginTop: 16,
+    letterSpacing: 0.5,
   },
-  sublabel: { fontSize: 12, color: '#98A2B3', fontWeight: '700', marginBottom: 8, marginTop: 12 },
-  hint: { fontSize: 12, color: '#98A2B3', marginBottom: 8 },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  sublabel: { fontSize: 12, fontWeight: '700', marginBottom: 8, marginTop: 12 },
+  hint: { fontSize: 12, marginBottom: 8 },
+  row: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   catBtn: {
-    alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14, backgroundColor: '#FFF',
-    borderWidth: 1.5, borderColor: '#E4E7EC',
+    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 14, borderWidth: 1.5,
+    flexDirection: 'row', gap: 6,
+    shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 1,
   },
-  catBtnActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
-  catEmoji: { fontSize: 20, marginBottom: 4 },
-  catLabel: { fontSize: 11, color: '#475467', fontWeight: '700' },
-  catLabelActive: { color: '#FFF' },
+  catLabel: { fontSize: 13, fontWeight: '700' },
   input: {
-    backgroundColor: '#FFF', borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 15, color: '#111827',
-    borderWidth: 1.5, borderColor: '#E4E7EC',
+    fontSize: 15, borderWidth: 1.5,
+    marginBottom: 10,
   },
   inputMulti: { minHeight: 80, textAlignVertical: 'top' },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  addressInput: { flex: 1 },
+  addressInput: { flex: 1, marginBottom: 0 },
   geocodeBtn: {
-    backgroundColor: '#4F46E5', borderRadius: 14,
+    borderRadius: 14,
     paddingHorizontal: 16, paddingVertical: 12,
     justifyContent: 'center', alignItems: 'center', minWidth: 70,
   },
-  geocodeBtnDisabled: { backgroundColor: '#C7D2FE' },
   geocodeBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  addressFound: { fontSize: 13, color: '#4338CA', fontWeight: '700', marginTop: 8, marginBottom: 4 },
-  mapWrap: { borderRadius: 16, overflow: 'hidden', height: 200, marginTop: 8, borderWidth: 1, borderColor: '#E4E7EC' },
+  addressFound: { fontSize: 13, fontWeight: '700', marginTop: 8, marginBottom: 4 },
+  mapWrap: { borderRadius: 16, overflow: 'hidden', height: 200, marginTop: 8, borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10, elevation: 2 },
   map: { flex: 1 },
-  coords: { fontSize: 11, color: '#98A2B3', marginTop: 6, textAlign: 'center' },
+  coords: { fontSize: 11, marginTop: 6, textAlign: 'center' },
   filterBtn: {
-    flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4,
-    borderRadius: 14, backgroundColor: '#FFF',
-    borderWidth: 1.5, borderColor: '#E4E7EC',
+    flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6,
+    borderRadius: 14, borderWidth: 1.5,
   },
-  filterBtnActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
-  filterEmoji: { fontSize: 18, marginBottom: 4 },
-  filterLabel: { fontSize: 10, color: '#667085', fontWeight: '700', textAlign: 'center' },
-  filterLabelActive: { color: '#4338CA' },
+  filterLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   ageRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   ageField: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ageHint: { fontSize: 13, color: '#667085' },
-  ageInput: { width: 70, textAlign: 'center' },
-  ageDash: { fontSize: 18, color: '#D0D5DD' },
-  ageUnit: { fontSize: 13, color: '#667085' },
+  ageHint: { fontSize: 13 },
+  ageInput: { width: 70, textAlign: 'center', marginBottom: 0 },
+  ageDash: { fontSize: 18 },
+  ageUnit: { fontSize: 13 },
   audienceBadge: {
-    marginTop: 12, backgroundColor: '#EEF2FF', borderRadius: 10,
+    marginTop: 12, borderRadius: 10, borderWidth: 1,
     paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start',
   },
-  audienceText: { fontSize: 13, color: '#4338CA', fontWeight: '700' },
+  audienceText: { fontSize: 13, fontWeight: '700' },
   photoBtn: {
     borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: '#E4E7EC',
-    borderStyle: 'dashed', minHeight: 120,
-    justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF',
+    borderWidth: 1.5, borderStyle: 'dashed', minHeight: 120,
+    justifyContent: 'center', alignItems: 'center',
   },
   photoPreview: { width: '100%', height: 160, borderRadius: 14 },
   photoPlaceholder: { alignItems: 'center', paddingVertical: 24 },
   photoIcon: { fontSize: 36, marginBottom: 8 },
-  photoHint: { fontSize: 14, color: '#667085' },
+  photoHint: { fontSize: 14 },
   removePhoto: { alignItems: 'center', marginTop: 8 },
-  removePhotoText: { fontSize: 13, color: '#D92D20' },
+  removePhotoText: { fontSize: 13, fontWeight: '600' },
   createBtn: {
-    margin: 16, marginTop: 24, backgroundColor: '#4F46E5',
-    borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+    margin: 16, marginTop: 24,
+    borderRadius: 16, paddingVertical: 16, alignItems: 'center',
   },
-  createBtnDisabled: { backgroundColor: '#C7D2FE' },
-  createBtnText: { fontSize: 17, fontWeight: '800', color: '#FFF' },
+  createBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });

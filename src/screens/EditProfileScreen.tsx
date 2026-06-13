@@ -13,7 +13,7 @@ import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const { user, updateUser } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   const currentAvatarIndex = AVATARS.indexOf(user?.avatar ?? '🧑');
   const [name, setName] = useState(user?.name ?? '');
@@ -22,6 +22,17 @@ export default function EditProfileScreen() {
   const [avatarValue, setAvatarValue] = useState(user?.avatar ?? AVATARS[avatarIndex]);
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const [isNameFocused, setIsNameFocused] = useState(false);
+  const [isBioFocused, setIsBioFocused] = useState(false);
+
+  const getShadowStyle = () => ({
+    shadowColor: isDark ? '#000' : '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDark ? 0.35 : 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  });
 
   async function pickAvatarPhoto() {
     if (!user) return;
@@ -79,62 +90,104 @@ export default function EditProfileScreen() {
         <View style={styles.avatarSection}>
           <AvatarImage
             value={avatarValue}
-            size={96}
+            size={100}
             backgroundColor={theme.accentLight}
             borderColor={theme.accent}
-            textSize={48}
+            textSize={50}
           />
           <TouchableOpacity
-            style={[styles.photoAvatarBtn, { backgroundColor: theme.accent }]}
+            style={[
+              styles.photoAvatarBtn,
+              {
+                backgroundColor: theme.accentLight,
+                borderColor: theme.accent,
+                borderWidth: 1.5,
+              }
+            ]}
             onPress={pickAvatarPhoto}
             disabled={uploadingAvatar}
             activeOpacity={0.8}
           >
-            {uploadingAvatar
-              ? <ActivityIndicator color="#FFF" size="small" />
-              : <Text style={styles.photoAvatarText}>Выбрать фото</Text>
-            }
+            {uploadingAvatar ? (
+              <ActivityIndicator color={theme.accent} size="small" />
+            ) : (
+              <Text style={[styles.photoAvatarText, { color: theme.accent }]}>Выбрать фото</Text>
+            )}
           </TouchableOpacity>
           <Text style={[styles.hint, { color: theme.subtext }]}>Или выбери emoji-аватар</Text>
           <View style={styles.avatarGrid}>
-            {AVATARS.map((a, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[
-                  styles.avatarOption,
-                  { backgroundColor: theme.card, borderColor: 'transparent' },
-                  avatarIndex === i && { borderColor: theme.accent, backgroundColor: theme.accentLight },
-                ]}
-                onPress={() => {
-                  setAvatarIndex(i);
-                  setAvatarValue(a);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.avatarOptionText}>{a}</Text>
-              </TouchableOpacity>
-            ))}
+            {AVATARS.map((a, i) => {
+              const isActive = avatarValue === a;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    styles.avatarTile,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                    },
+                    isActive && {
+                      borderColor: theme.accent,
+                      backgroundColor: theme.accentLight,
+                      shadowColor: theme.accent,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.15,
+                      shadowRadius: 8,
+                      elevation: 2,
+                    },
+                  ]}
+                  onPress={() => {
+                    setAvatarIndex(i);
+                    setAvatarValue(a);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.avatarTileText}>{a}</Text>
+                  {isActive && <View style={[styles.activeOverlay, { backgroundColor: theme.accent + '15' }]} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
         <View style={styles.form}>
           <Text style={[styles.label, { color: theme.subtext }]}>Имя</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.inputBg,
+                borderColor: isNameFocused ? theme.accent : theme.border,
+                color: theme.text
+              }
+            ]}
             value={name}
             onChangeText={setName}
+            onFocus={() => setIsNameFocused(true)}
+            onBlur={() => setIsNameFocused(false)}
             placeholder="Твоё имя"
-            placeholderTextColor={theme.subtext}
+            placeholderTextColor={theme.subtext + '80'}
             maxLength={40}
           />
 
           <Text style={[styles.label, { color: theme.subtext }]}>О себе</Text>
           <TextInput
-            style={[styles.input, styles.bioInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              styles.input,
+              styles.bioInput,
+              {
+                backgroundColor: theme.inputBg,
+                borderColor: isBioFocused ? theme.accent : theme.border,
+                color: theme.text
+              }
+            ]}
             value={bio}
             onChangeText={setBio}
+            onFocus={() => setIsBioFocused(true)}
+            onBlur={() => setIsBioFocused(false)}
             placeholder="Расскажи о себе..."
-            placeholderTextColor={theme.subtext}
+            placeholderTextColor={theme.subtext + '80'}
             multiline
             numberOfLines={3}
             maxLength={150}
@@ -142,15 +195,21 @@ export default function EditProfileScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+          style={[
+            styles.saveBtn,
+            { backgroundColor: theme.accent },
+            getShadowStyle(),
+            (loading || uploadingAvatar) && { backgroundColor: theme.border, shadowOpacity: 0, elevation: 0 }
+          ]}
           onPress={handleSave}
           disabled={loading || uploadingAvatar}
           activeOpacity={0.85}
         >
-          {loading
-            ? <ActivityIndicator color="#FFF" />
-            : <Text style={styles.saveBtnText}>Сохранить изменения</Text>
-          }
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.saveBtnText}>Сохранить изменения</Text>
+          )}
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -163,36 +222,44 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingBottom: 40 },
   avatarSection: { alignItems: 'center', paddingVertical: 28 },
   photoAvatarBtn: {
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    marginTop: 12,
-    marginBottom: 10,
-    minWidth: 124,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 16,
+    marginBottom: 12,
+    minWidth: 140,
     alignItems: 'center',
   },
-  photoAvatarText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  hint: { fontSize: 13, marginBottom: 16 },
+  photoAvatarText: { fontSize: 13, fontWeight: '800' },
+  hint: { fontSize: 13, marginBottom: 16, fontWeight: '600' },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingHorizontal: 16 },
-  avatarOption: {
-    width: 56, height: 56, borderRadius: 28,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 2,
+  avatarTile: {
+    width: 62,
+    height: 62,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  avatarOptionText: { fontSize: 28 },
-  form: { paddingHorizontal: 16 },
+  avatarTileText: { fontSize: 28 },
+  activeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  form: { paddingHorizontal: 20 },
   label: {
-    fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
-    marginTop: 20, marginBottom: 8,
+    fontSize: 12, fontWeight: '700', textTransform: 'uppercase',
+    marginTop: 24, marginBottom: 8, letterSpacing: 0.5,
   },
   input: {
-    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13,
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
     fontSize: 15, borderWidth: 1.5,
   },
-  bioInput: { minHeight: 90, textAlignVertical: 'top' },
+  bioInput: { minHeight: 100, textAlignVertical: 'top' },
   saveBtn: {
-    margin: 16, marginTop: 28, backgroundColor: '#4F46E5',
+    margin: 20, marginTop: 32,
     borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
-  saveBtnDisabled: { backgroundColor: '#C7D2FE' },
   saveBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });

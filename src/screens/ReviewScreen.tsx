@@ -8,6 +8,7 @@ import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../context/EventsContext';
+import { useTheme } from '../context/ThemeContext';
 import AvatarImage from '../components/AvatarImage';
 
 type ReviewRoute = RouteProp<RootStackParamList, 'Review'>;
@@ -19,11 +20,12 @@ interface Participant {
 }
 
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map(i => (
-        <TouchableOpacity key={i} onPress={() => onChange(i)}>
-          <Text style={[styles.star, i <= value && styles.starFilled]}>★</Text>
+        <TouchableOpacity key={i} onPress={() => onChange(i)} activeOpacity={0.7} style={styles.starTouch}>
+          <Text style={[styles.star, { color: i <= value ? '#EAB308' : theme.border }]}>★</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -35,6 +37,7 @@ export default function ReviewScreen() {
   const navigation = useNavigation();
   const { user, updateUser } = useAuth();
   const { events } = useEvents();
+  const { theme, isDark } = useTheme();
   const { eventId, eventTitle } = route.params;
   const event = events.find(e => e.id === eventId);
 
@@ -43,6 +46,15 @@ export default function ReviewScreen() {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
+
+  const getShadowStyle = () => ({
+    shadowColor: isDark ? '#000' : '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDark ? 0.35 : 0.06,
+    shadowRadius: 14,
+    elevation: 3,
+  });
 
   useEffect(() => {
     loadParticipants();
@@ -105,37 +117,44 @@ export default function ReviewScreen() {
 
   if (submitted) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <View style={styles.successContainer}>
           <Text style={styles.successEmoji}>🎉</Text>
-          <Text style={styles.successTitle}>Спасибо!</Text>
-          <Text style={styles.successText}>Отзывы отправлены участникам</Text>
+          <Text style={[styles.successTitle, { color: theme.text }]}>Спасибо!</Text>
+          <Text style={[styles.successText, { color: theme.subtext }]}>Отзывы отправлены участникам</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Оцени участников</Text>
-          <Text style={styles.subtitle}>{eventTitle}</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Оцени участников</Text>
+          <Text style={[styles.subtitle, { color: theme.accent }]}>{eventTitle}</Text>
         </View>
 
         {loading ? (
-        <ActivityIndicator color="#4F46E5" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={theme.accent} style={{ marginTop: 40 }} />
         ) : participants.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Нет других участников для оценки</Text>
+            <Text style={[styles.emptyText, { color: theme.subtext }]}>Нет других участников для оценки</Text>
           </View>
         ) : (
           participants.map(participant => (
-            <View key={participant.id} style={styles.card}>
+            <View
+              key={participant.id}
+              style={[
+                styles.card,
+                { backgroundColor: theme.card, borderColor: theme.border },
+                getShadowStyle()
+              ]}
+            >
               <View style={styles.cardHeader}>
-                <AvatarImage value={participant.avatar} size={48} backgroundColor="#EEF2FF" textSize={24} />
+                <AvatarImage value={participant.avatar} size={48} backgroundColor={theme.accentLight} textSize={24} />
                 <View style={styles.info}>
-                  <Text style={styles.name}>{participant.name}</Text>
+                  <Text style={[styles.name, { color: theme.text }]}>{participant.name}</Text>
                   <StarPicker
                     value={ratings[participant.id] ?? 0}
                     onChange={v => setRatings(prev => ({ ...prev, [participant.id]: v }))}
@@ -143,11 +162,20 @@ export default function ReviewScreen() {
                 </View>
               </View>
               <TextInput
-                style={styles.commentInput}
+                style={[
+                  styles.commentInput,
+                  {
+                    backgroundColor: theme.inputBg,
+                    borderColor: focusedInputId === participant.id ? theme.accent : theme.border,
+                    color: theme.text,
+                  }
+                ]}
                 placeholder="Оставить комментарий (необязательно)..."
-                placeholderTextColor="#BBB"
+                placeholderTextColor={theme.subtext + '80'}
                 value={comments[participant.id] ?? ''}
                 onChangeText={t => setComments(prev => ({ ...prev, [participant.id]: t }))}
+                onFocus={() => setFocusedInputId(participant.id)}
+                onBlur={() => setFocusedInputId(null)}
                 maxLength={120}
               />
             </View>
@@ -155,13 +183,17 @@ export default function ReviewScreen() {
         )}
 
         {!loading && participants.length > 0 && (
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[styles.submitBtn, { backgroundColor: theme.accent }, getShadowStyle()]}
+            onPress={handleSubmit}
+            activeOpacity={0.85}
+          >
             <Text style={styles.submitBtnText}>Отправить отзывы ⭐</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.skipBtnText}>Пропустить</Text>
+        <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Text style={[styles.skipBtnText, { color: theme.subtext }]}>Пропустить</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -171,42 +203,42 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7FB' },
-  header: { padding: 20, paddingBottom: 8, width: '100%', maxWidth: 760, alignSelf: 'center' },
-  title: { fontSize: 26, fontWeight: '900', color: '#111827' },
-  subtitle: { fontSize: 14, color: '#4338CA', marginTop: 4, fontWeight: '700' },
+  container: { flex: 1 },
+  header: { padding: 24, paddingBottom: 12, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  title: { fontSize: 26, fontWeight: '900' },
+  subtitle: { fontSize: 14, marginTop: 6, fontWeight: '700' },
   emptyContainer: { alignItems: 'center', paddingTop: 40 },
-  emptyText: { fontSize: 15, color: '#98A2B3' },
+  emptyText: { fontSize: 15 },
   card: {
-    backgroundColor: '#FFF', borderRadius: 16, margin: 12, marginBottom: 0,
+    borderRadius: 18, marginHorizontal: 16, marginVertical: 10,
     padding: 16,
-    borderWidth: 1, borderColor: '#E4E7EC',
-    maxWidth: 736, alignSelf: 'center',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
+    borderWidth: 1.5,
+    maxWidth: 728, alignSelf: 'center',
+    width: '92%',
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
   info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 6 },
-  starRow: { flexDirection: 'row', gap: 4 },
-  star: { fontSize: 28, color: '#DDD' },
-  starFilled: { color: '#F5A623' },
+  name: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  starRow: { flexDirection: 'row', gap: 2 },
+  starTouch: { paddingVertical: 4, paddingRight: 6 },
+  star: { fontSize: 28 },
   commentInput: {
-    backgroundColor: '#F9FAFB', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#111827',
-    borderWidth: 1, borderColor: '#E4E7EC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    borderWidth: 1.5,
   },
   submitBtn: {
-    margin: 16, marginTop: 24, backgroundColor: '#4F46E5',
+    marginHorizontal: 16, marginVertical: 24,
     borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-    width: '100%', maxWidth: 736, alignSelf: 'center',
+    width: '92%', maxWidth: 728, alignSelf: 'center',
   },
   submitBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
-  skipBtn: { alignItems: 'center', paddingVertical: 8 },
-  skipBtnText: { fontSize: 14, color: '#98A2B3' },
-  successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  skipBtn: { alignItems: 'center', paddingVertical: 12 },
+  skipBtnText: { fontSize: 14, fontWeight: '700' },
+  successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   successEmoji: { fontSize: 72, marginBottom: 16 },
-  successTitle: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 8 },
-  successText: { fontSize: 16, color: '#667085' },
+  successTitle: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
+  successText: { fontSize: 16, textAlign: 'center' },
 });

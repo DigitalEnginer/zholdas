@@ -71,7 +71,7 @@ function isMessageReport(report: ReportItem) {
 export default function ModeratorDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [bans, setBans] = useState<BanItem[]>([]);
   const [actions, setActions] = useState<ModerationAction[]>([]);
@@ -80,6 +80,9 @@ export default function ModeratorDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canModerate = user?.role === 'moderator' || user?.role === 'admin';
+
+  const shadowColor = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.05;
 
   useEffect(() => {
     loadModerationData();
@@ -257,9 +260,9 @@ export default function ModeratorDashboardScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
       >
-        <View style={[styles.summary, { backgroundColor: theme.card }]}>
+        <View style={[styles.summary, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: '#D92D20' }]}>{pendingReports.length}</Text>
+            <Text style={[styles.summaryValue, { color: theme.danger }]}>{pendingReports.length}</Text>
             <Text style={[styles.summaryLabel, { color: theme.subtext }]}>новых жалоб</Text>
           </View>
           <View style={[styles.summaryItem, { borderLeftColor: theme.border, borderLeftWidth: 1 }]}>
@@ -267,12 +270,12 @@ export default function ModeratorDashboardScreen() {
             <Text style={[styles.summaryLabel, { color: theme.subtext }]}>всего</Text>
           </View>
           <View style={[styles.summaryItem, { borderLeftColor: theme.border, borderLeftWidth: 1 }]}>
-            <Text style={[styles.summaryValue, { color: '#E07B2C' }]}>{bans.length}</Text>
+            <Text style={[styles.summaryValue, { color: theme.warning }]}>{bans.length}</Text>
             <Text style={[styles.summaryLabel, { color: theme.subtext }]}>банов</Text>
           </View>
         </View>
 
-        <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+        <View style={[styles.tabs, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
           {[
             { key: 'reports', label: 'Жалобы' },
             { key: 'bans', label: 'Баны' },
@@ -282,21 +285,33 @@ export default function ModeratorDashboardScreen() {
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                style={[
+                  styles.tab,
+                  selected && {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                    shadowColor,
+                    shadowOpacity: isDark ? 0.2 : 0.06,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }
+                ]}
                 onPress={() => setActiveTab(tab.key as DashboardTab)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+                <Text style={[styles.tabText, { color: selected ? theme.text : theme.subtext, fontWeight: selected ? '800' : '600' }]}>{tab.label}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         {activeTab === 'reports' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Очередь жалоб</Text>
             {reports.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>Жалоб пока нет</Text>
+              <Text style={[styles.emptyText, { color: theme.subtext, paddingVertical: 16 }]}>Жалоб пока нет</Text>
             ) : (
               reports.map(report => {
                 const reporter = profiles[report.reporter_id];
@@ -305,6 +320,24 @@ export default function ModeratorDashboardScreen() {
                 const messageText = getDetailValue(report.details, 'message_text');
                 const imageUrl = getDetailValue(report.details, 'image_url');
                 const eventTitle = getDetailValue(report.details, 'event_title');
+
+                const statusColor = report.status === 'pending'
+                  ? theme.danger
+                  : report.status === 'reviewed'
+                    ? theme.success
+                    : theme.subtext;
+
+                const statusBg = report.status === 'pending'
+                  ? (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1')
+                  : report.status === 'reviewed'
+                    ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5')
+                    : theme.inputBg;
+
+                const statusLabel = report.status === 'pending'
+                  ? 'Новая'
+                  : report.status === 'reviewed'
+                    ? 'Закрыта'
+                    : 'Отклонена';
 
                 return (
                   <View key={report.id} style={[styles.reportCard, { borderTopColor: theme.border }]}>
@@ -316,9 +349,9 @@ export default function ModeratorDashboardScreen() {
                           <Text style={[styles.rowMeta, { color: theme.subtext }]}>На кого жалоба</Text>
                         </View>
                       </TouchableOpacity>
-                      <View style={[styles.statusPill, { backgroundColor: isPending ? '#FEE4E2' : theme.accentLight }]}>
-                        <Text style={[styles.statusText, { color: isPending ? '#D92D20' : theme.accent }]}>
-                          {isPending ? 'Новая' : report.status === 'reviewed' ? 'Закрыта' : 'Отклонена'}
+                      <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
+                        <Text style={[styles.statusText, { color: statusColor }]}>
+                          {statusLabel}
                         </Text>
                       </View>
                     </View>
@@ -340,31 +373,82 @@ export default function ModeratorDashboardScreen() {
                       <Text style={[styles.rowMeta, { color: theme.subtext }]}>От: {reporter?.name ?? 'пользователь'}</Text>
                       <Text style={[styles.rowMeta, { color: theme.subtext }]}>{formatDate(report.created_at)}</Text>
                     </View>
-                    {eventTitle ? <Text style={[styles.rowMeta, { color: theme.subtext }]}>Ивент: {eventTitle}</Text> : null}
+                    {eventTitle ? <Text style={[styles.rowMeta, { color: theme.subtext, marginTop: 4 }]}>Ивент: {eventTitle}</Text> : null}
 
                     <View style={styles.actions}>
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => openProfile(target)}>
-                        <Text style={styles.actionText}>Профиль</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          {
+                            backgroundColor: theme.accentLight,
+                            borderColor: theme.accent,
+                            borderWidth: 1,
+                          }
+                        ]}
+                        onPress={() => openProfile(target)}
+                      >
+                        <Text style={[styles.actionText, { color: theme.accent }]}>Профиль</Text>
                       </TouchableOpacity>
                       {isPending && (
                         <>
                           <TouchableOpacity
-                            style={[styles.actionBtn, { backgroundColor: bannedIds.has(report.reported_user_id) ? theme.subtext : '#D92D20' }]}
+                            style={[
+                              styles.actionBtn,
+                              {
+                                backgroundColor: bannedIds.has(report.reported_user_id)
+                                  ? theme.inputBg
+                                  : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1'),
+                                borderColor: bannedIds.has(report.reported_user_id) ? theme.border : theme.danger,
+                                borderWidth: 1,
+                              }
+                            ]}
                             onPress={() => banFromReport(report)}
                             disabled={bannedIds.has(report.reported_user_id)}
                           >
-                            <Text style={styles.actionText}>{bannedIds.has(report.reported_user_id) ? 'Уже бан' : 'Бан'}</Text>
+                            <Text style={[styles.actionText, { color: bannedIds.has(report.reported_user_id) ? theme.subtext : theme.danger }]}>
+                              {bannedIds.has(report.reported_user_id) ? 'Уже бан' : 'Бан'}
+                            </Text>
                           </TouchableOpacity>
                           {isMessageReport(report) && (
-                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#E07B2C' }]} onPress={() => deleteReportedMessage(report)}>
-                              <Text style={styles.actionText}>Удалить</Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.actionBtn,
+                                {
+                                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+                                  borderColor: theme.warning,
+                                  borderWidth: 1,
+                                }
+                              ]}
+                              onPress={() => deleteReportedMessage(report)}
+                            >
+                              <Text style={[styles.actionText, { color: theme.warning }]}>Удалить</Text>
                             </TouchableOpacity>
                           )}
-                          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => updateReportStatus(report.id, 'reviewed')}>
-                            <Text style={styles.actionText}>Закрыть</Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.actionBtn,
+                              {
+                                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                                borderColor: theme.success,
+                                borderWidth: 1,
+                              }
+                            ]}
+                            onPress={() => updateReportStatus(report.id, 'reviewed')}
+                          >
+                            <Text style={[styles.actionText, { color: theme.success }]}>Закрыть</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.subtext }]} onPress={() => updateReportStatus(report.id, 'dismissed')}>
-                            <Text style={styles.actionText}>Отклонить</Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.actionBtn,
+                              {
+                                backgroundColor: theme.inputBg,
+                                borderColor: theme.border,
+                                borderWidth: 1,
+                              }
+                            ]}
+                            onPress={() => updateReportStatus(report.id, 'dismissed')}
+                          >
+                            <Text style={[styles.actionText, { color: theme.text }]}>Отклонить</Text>
                           </TouchableOpacity>
                         </>
                       )}
@@ -377,10 +461,10 @@ export default function ModeratorDashboardScreen() {
         )}
 
         {activeTab === 'bans' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Забаненные пользователи</Text>
             {bans.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>Активных банов нет</Text>
+              <Text style={[styles.emptyText, { color: theme.subtext, paddingVertical: 16 }]}>Активных банов нет</Text>
             ) : (
               bans.map(ban => {
                 const banned = profiles[ban.user_id];
@@ -390,12 +474,22 @@ export default function ModeratorDashboardScreen() {
                       <AvatarImage value={banned?.avatar ?? '👤'} size={42} backgroundColor={theme.accentLight} textSize={24} />
                       <View style={styles.personBody}>
                         <Text style={[styles.rowTitle, { color: theme.text }]}>{banned?.name ?? 'Пользователь'}</Text>
-                        <Text style={[styles.reason, { color: theme.subtext }]}>{ban.reason ?? 'Без причины'}</Text>
-                        <Text style={[styles.rowMeta, { color: theme.subtext }]}>{formatDate(ban.created_at)}</Text>
+                        <Text style={[styles.reason, { color: theme.subtext, marginTop: 4 }]}>{ban.reason ?? 'Без причины'}</Text>
+                        <Text style={[styles.rowMeta, { color: theme.subtext, marginTop: 4 }]}>{formatDate(ban.created_at)}</Text>
                       </View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.outlineBtn, { borderColor: theme.border }]} onPress={() => unbanUser(ban.user_id)}>
-                      <Text style={[styles.outlineText, { color: theme.subtext }]}>Разбанить</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.outlineBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                          borderColor: theme.success,
+                          borderWidth: 1,
+                        }
+                      ]}
+                      onPress={() => unbanUser(ban.user_id)}
+                    >
+                      <Text style={[styles.outlineText, { color: theme.success }]}>Разбанить</Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -405,10 +499,10 @@ export default function ModeratorDashboardScreen() {
         )}
 
         {activeTab === 'history' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>История действий</Text>
             {actions.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>Действий пока нет</Text>
+              <Text style={[styles.emptyText, { color: theme.subtext, paddingVertical: 16 }]}>Действий пока нет</Text>
             ) : (
               actions.map(action => {
                 const moderator = action.moderator_id ? profiles[action.moderator_id] : null;
@@ -429,7 +523,7 @@ export default function ModeratorDashboardScreen() {
                       </Text>
                       <Text style={[styles.rowMeta, { color: theme.subtext }]}>Модератор: {moderator?.name ?? 'система'}</Text>
                       <Text style={[styles.rowMeta, { color: theme.subtext }]}>{formatDate(action.created_at)}</Text>
-                      {action.reason ? <Text style={[styles.reason, { color: theme.subtext }]}>{action.reason}</Text> : null}
+                      {action.reason ? <Text style={[styles.reason, { color: theme.subtext, marginTop: 4 }]}>{action.reason}</Text> : null}
                     </View>
                   </View>
                 );
@@ -447,18 +541,16 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 1040, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  summary: { flexDirection: 'row', borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
+  summary: { flexDirection: 'row', borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1 },
   summaryItem: { flex: 1, alignItems: 'center', paddingVertical: 18 },
   summaryValue: { fontSize: 26, fontWeight: '900' },
   summaryLabel: { fontSize: 12, marginTop: 4 },
-  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
-  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-  tabText: { fontSize: 13, fontWeight: '800' },
+  tabs: { flexDirection: 'row', gap: 4, borderRadius: 16, padding: 4, marginBottom: 16, borderWidth: 1 },
+  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 12 },
   section: {
-    borderRadius: 16, overflow: 'hidden', marginBottom: 12,
-    borderWidth: 1, borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05, shadowRadius: 16, elevation: 2,
+    borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 }, shadowRadius: 16, elevation: 2,
   },
   sectionTitle: {
     fontSize: 12,
@@ -488,7 +580,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '900' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   actionBtn: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
-  actionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  actionText: { fontSize: 12, fontWeight: '800' },
   outlineBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   outlineText: { fontSize: 12, fontWeight: '800' },
 });

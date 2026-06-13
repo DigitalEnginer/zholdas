@@ -27,11 +27,19 @@ export default function EventParticipantsScreen() {
   const navigation = useNavigation<Nav>();
   const { eventId } = route.params;
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatorId, setCreatorId] = useState<string | null>(null);
   const canModerate = user?.role === 'moderator' || user?.role === 'admin';
+
+  const getShadowStyle = () => ({
+    shadowColor: isDark ? '#000' : '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDark ? 0.35 : 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  });
 
   useEffect(() => {
     loadParticipants();
@@ -110,41 +118,63 @@ export default function EventParticipantsScreen() {
           {participants.length === 0 ? (
             <Text style={[styles.empty, { color: theme.subtext }]}>Участников пока нет</Text>
           ) : (
-            participants.map(participant => (
-              <TouchableOpacity
-                key={participant.id}
-                style={[styles.row, { backgroundColor: theme.card, borderColor: theme.border }]}
-                onPress={() => openProfile(participant)}
-                activeOpacity={0.75}
-              >
-                <AvatarImage value={participant.avatar} size={44} backgroundColor={theme.accentLight} textSize={24} />
-                <View style={styles.info}>
-                  <View style={styles.titleRow}>
-                    <Text style={[styles.name, { color: theme.text }]}>{participant.name}</Text>
-                    {participant.isBanned && (
-                      <View style={styles.bannedBadge}>
-                        <Text style={styles.bannedBadgeText}>Забанен</Text>
+            <View style={[styles.listContainer, { backgroundColor: theme.card, borderColor: theme.border }, getShadowStyle()]}>
+              {participants.map((participant, index) => {
+                const isLast = index === participants.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={participant.id}
+                    style={[
+                      styles.rowTile,
+                      !isLast && { borderBottomWidth: 1, borderBottomColor: theme.border }
+                    ]}
+                    onPress={() => openProfile(participant)}
+                    activeOpacity={0.75}
+                  >
+                    <AvatarImage value={participant.avatar} size={44} backgroundColor={theme.accentLight} textSize={24} />
+                    <View style={styles.info}>
+                      <View style={styles.titleRow}>
+                        <Text style={[styles.name, { color: theme.text }]}>{participant.name}</Text>
+                        {participant.id === creatorId && (
+                          <View style={[styles.organizerBadge, { backgroundColor: theme.accentLight }]}>
+                            <Text style={[styles.organizerBadgeText, { color: theme.accent }]}>ОРГАНИЗАТОР</Text>
+                          </View>
+                        )}
+                        {participant.isBanned && (
+                          <View style={[styles.bannedBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE4E2' }]}>
+                            <Text style={[styles.bannedBadgeText, { color: theme.danger }]}>Забанен</Text>
+                          </View>
+                        )}
                       </View>
+                      <Text style={[styles.meta, { color: theme.subtext }]}>
+                        {participant.isBanned
+                          ? 'Скрыт для обычных пользователей'
+                          : participant.id === user?.id
+                            ? 'Это вы'
+                            : participant.rating > 0
+                              ? `Рейтинг ${participant.rating.toFixed(1)}`
+                              : 'Профиль участника'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.arrow, { color: theme.subtext }]}>›</Text>
+                    {(canModerate || creatorId === user?.id) && participant.id !== user?.id && (
+                      <TouchableOpacity
+                        style={[
+                          styles.removeBtn,
+                          {
+                            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)',
+                            borderColor: theme.danger + '40'
+                          }
+                        ]}
+                        onPress={() => removeParticipant(participant)}
+                      >
+                        <Text style={[styles.removeText, { color: theme.danger }]}>Удалить</Text>
+                      </TouchableOpacity>
                     )}
-                  </View>
-                  <Text style={[styles.meta, { color: theme.subtext }]}>
-                    {participant.isBanned
-                      ? 'Скрыт для обычных пользователей'
-                      : participant.id === user?.id
-                        ? 'Это вы'
-                        : participant.rating > 0
-                          ? `Рейтинг ${participant.rating.toFixed(1)}`
-                          : 'Профиль участника'}
-                  </Text>
-                </View>
-                <Text style={[styles.arrow, { color: theme.subtext }]}>›</Text>
-                {(canModerate || creatorId === user?.id) && participant.id !== user?.id && (
-                  <TouchableOpacity style={styles.removeBtn} onPress={() => removeParticipant(participant)}>
-                    <Text style={styles.removeText}>Удалить</Text>
                   </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            ))
+                );
+              })}
+            </View>
           )}
         </ScrollView>
       )}
@@ -154,35 +184,42 @@ export default function EventParticipantsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36 },
+  content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 760, alignSelf: 'center' },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
-  row: {
+  listContainer: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  rowTile: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    padding: 16,
   },
   info: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  name: { fontSize: 16, fontWeight: '800' },
+  name: { fontSize: 15, fontWeight: '800' },
   meta: { fontSize: 12, marginTop: 3 },
-  bannedBadge: {
-    borderRadius: 8,
-    backgroundColor: '#FEE4E2',
-    paddingHorizontal: 7,
+  organizerBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  bannedBadgeText: { color: '#B42318', fontSize: 10, fontWeight: '800' },
-  arrow: { fontSize: 24 },
+  organizerBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  bannedBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  bannedBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  arrow: { fontSize: 22, marginRight: 4 },
   removeBtn: {
     marginLeft: 8,
-    borderRadius: 12,
-    backgroundColor: '#FEE4E2',
-    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  removeText: { color: '#B42318', fontSize: 11, fontWeight: '800' },
+  removeText: { fontSize: 11, fontWeight: '800' },
 });

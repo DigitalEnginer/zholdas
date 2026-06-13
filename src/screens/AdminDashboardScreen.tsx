@@ -117,7 +117,7 @@ function cleanDetails(value?: string | null) {
 export default function AdminDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
   const [activeTab, setActiveTab] = React.useState<AdminTab>('overview');
@@ -140,6 +140,15 @@ export default function AdminDashboardScreen() {
   const [broadcastTitle, setBroadcastTitle] = React.useState('');
   const [broadcastBody, setBroadcastBody] = React.useState('');
   const [sendingBroadcast, setSendingBroadcast] = React.useState(false);
+
+  // Focus states for search/text inputs
+  const [userSearchFocused, setUserSearchFocused] = React.useState(false);
+  const [eventSearchFocused, setEventSearchFocused] = React.useState(false);
+  const [broadcastTitleFocused, setBroadcastTitleFocused] = React.useState(false);
+  const [broadcastBodyFocused, setBroadcastBodyFocused] = React.useState(false);
+
+  const shadowColor = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.05;
 
   const isAdmin = isSuperAdmin(user);
   const selectedEvent = events.find(event => event.id === selectedEventId) ?? null;
@@ -261,22 +270,22 @@ export default function AdminDashboardScreen() {
 
     setStats([
       { label: 'Юзеры', value: usersCount, tone: theme.accent },
-      { label: 'Ивенты', value: eventsCount, tone: '#2E9E5D' },
+      { label: 'Ивенты', value: eventsCount, tone: theme.success ?? '#10B981' },
       { label: 'Активные', value: activeEventsCount, tone: '#0EA5E9' },
       { label: 'Сообщения', value: messagesCount, tone: '#8B5CF6' },
-      { label: 'Жалобы', value: pendingReportsCount, tone: '#D92D20' },
-      { label: 'Баны', value: bansCount, tone: '#E07B2C' },
+      { label: 'Жалобы', value: pendingReportsCount, tone: theme.danger ?? '#EF4444' },
+      { label: 'Баны', value: bansCount, tone: theme.warning ?? '#F59E0B' },
     ]);
 
     setAnalytics([
       { label: 'Рег. сегодня', value: usersToday, tone: theme.accent },
       { label: 'Рег. 7 дней', value: users7, tone: '#0EA5E9' },
       { label: 'Рег. 30 дней', value: users30, tone: '#8B5CF6' },
-      { label: 'Ивенты 7 дней', value: events7, tone: '#2E9E5D' },
-      { label: 'Ивенты 30 дней', value: events30, tone: '#2E9E5D' },
-      { label: 'Сообщ. 7 дней', value: messages7, tone: '#E07B2C' },
-      { label: 'Вступления 7 дней', value: joins7, tone: '#D92D20' },
-      { label: 'Активные 7 дней', value: activeIds.size, tone: '#111827' },
+      { label: 'Ивенты 7 дней', value: events7, tone: theme.success ?? '#10B981' },
+      { label: 'Ивенты 30 дней', value: events30, tone: theme.success ?? '#10B981' },
+      { label: 'Сообщ. 7 дней', value: messages7, tone: theme.warning ?? '#F59E0B' },
+      { label: 'Вступления 7 дней', value: joins7, tone: theme.danger ?? '#EF4444' },
+      { label: 'Активные 7 дней', value: activeIds.size, tone: theme.text },
     ]);
 
     const nextEvents = ((eventsData ?? []) as any[]).map(event => ({
@@ -609,22 +618,37 @@ export default function AdminDashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
       >
-        <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
           <Text style={[styles.heroTitle, { color: theme.text }]}>Super Admin</Text>
           <Text style={[styles.heroText, { color: theme.subtext }]}>
             Управление пользователями, чатами, ивентами, модерацией, настройками и статистикой.
           </Text>
           <View style={styles.quickActions}>
-            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('ModeratorDashboard')}>
+            <TouchableOpacity
+              style={[styles.quickBtn, { backgroundColor: theme.accent }]}
+              onPress={() => navigation.navigate('ModeratorDashboard')}
+              activeOpacity={0.8}
+            >
               <Text style={styles.quickBtnText}>Модерация</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: '#111827' }]} onPress={() => navigation.navigate('AdminRoles')}>
-              <Text style={styles.quickBtnText}>Роли</Text>
+            <TouchableOpacity
+              style={[
+                styles.quickBtn,
+                {
+                  backgroundColor: theme.inputBg,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                }
+              ]}
+              onPress={() => navigation.navigate('AdminRoles')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.quickBtnText, { color: theme.text }]}>Роли</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+        <View style={[styles.tabs, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
           {[
             { key: 'overview', label: 'Статистика' },
             { key: 'users', label: 'Юзеры' },
@@ -637,10 +661,23 @@ export default function AdminDashboardScreen() {
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                style={[
+                  styles.tab,
+                  selected && {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                    shadowColor,
+                    shadowOpacity: isDark ? 0.2 : 0.06,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }
+                ]}
                 onPress={() => setActiveTab(tab.key as AdminTab)}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+                <Text style={[styles.tabText, { color: selected ? theme.text : theme.subtext, fontWeight: selected ? '800' : '600' }]}>{tab.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -650,17 +687,41 @@ export default function AdminDashboardScreen() {
           <>
             <View style={styles.statsGrid}>
               {stats.map(stat => (
-                <View key={stat.label} style={[styles.statCard, isWide && styles.statCardWide, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View
+                  key={stat.label}
+                  style={[
+                    styles.statCard,
+                    isWide && styles.statCardWide,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      shadowColor,
+                      shadowOpacity,
+                    }
+                  ]}
+                >
                   <Text style={[styles.statValue, { color: stat.tone }]}>{stat.value}</Text>
                   <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
                 </View>
               ))}
             </View>
-            <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>MVP аналитика</Text>
               <View style={styles.statsGridInner}>
                 {analytics.map(stat => (
-                  <View key={stat.label} style={[styles.statCardSmall, isWide && styles.statCardSmallWide, { borderColor: theme.border }]}>
+                  <View
+                    key={stat.label}
+                    style={[
+                      styles.statCardSmall,
+                      isWide && styles.statCardSmallWide,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                        shadowColor,
+                        shadowOpacity,
+                      }
+                    ]}
+                  >
                     <Text style={[styles.statValueSmall, { color: stat.tone }]}>{stat.value}</Text>
                     <Text style={[styles.statLabel, { color: theme.subtext }]}>{stat.label}</Text>
                   </View>
@@ -671,16 +732,25 @@ export default function AdminDashboardScreen() {
         )}
 
         {activeTab === 'users' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Управление пользователями</Text>
             <TextInput
-              style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: theme.inputBg,
+                  borderColor: userSearchFocused ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               value={userSearch}
               onChangeText={setUserSearch}
               placeholder="Поиск по имени, email или id"
               placeholderTextColor={theme.subtext}
               autoCapitalize="none"
               autoCorrect={false}
+              onFocus={() => setUserSearchFocused(true)}
+              onBlur={() => setUserSearchFocused(false)}
             />
             {selectedProfile && (
               <View style={[styles.detailPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
@@ -735,8 +805,8 @@ export default function AdminDashboardScreen() {
                       <Text style={[styles.itemMeta, { color: theme.subtext }]}>
                         joined: {profile.events_joined ?? 0} · friends: {profile.friends_made ?? 0}
                       </Text>
-                      {profile.ban_reason ? <Text style={[styles.itemMeta, { color: '#D92D20' }]}>{profile.ban_reason}</Text> : null}
-                      {protectedPeerAdmin ? <Text style={[styles.itemMeta, { color: '#E07B2C' }]}>Другой admin защищен от изменений</Text> : null}
+                      {profile.ban_reason ? <Text style={[styles.itemMeta, { color: theme.danger }]}>{profile.ban_reason}</Text> : null}
+                      {protectedPeerAdmin ? <Text style={[styles.itemMeta, { color: theme.warning }]}>Другой admin защищен от изменений</Text> : null}
                     </View>
                     <TouchableOpacity
                       style={[styles.smallBtn, { backgroundColor: theme.accentLight }]}
@@ -771,16 +841,55 @@ export default function AdminDashboardScreen() {
                       <Text style={styles.actionText}>Детали</Text>
                     </TouchableOpacity>
                     {profile.is_banned ? (
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#2E9E5D' : theme.subtext }]} onPress={() => unbanUser(profile)} disabled={!manageable}>
-                        <Text style={styles.actionText}>Разбанить</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          {
+                            backgroundColor: manageable
+                              ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5')
+                              : theme.inputBg,
+                            borderColor: manageable ? theme.success : theme.border,
+                            borderWidth: 1,
+                          }
+                        ]}
+                        onPress={() => unbanUser(profile)}
+                        disabled={!manageable}
+                      >
+                        <Text style={[styles.actionText, { color: manageable ? theme.success : theme.subtext }]}>Разбанить</Text>
                       </TouchableOpacity>
                     ) : (
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#E07B2C' : theme.subtext }]} onPress={() => banUser(profile)} disabled={!manageable}>
-                        <Text style={styles.actionText}>Бан</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          {
+                            backgroundColor: manageable
+                              ? (isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7')
+                              : theme.inputBg,
+                            borderColor: manageable ? theme.warning : theme.border,
+                            borderWidth: 1,
+                          }
+                        ]}
+                        onPress={() => banUser(profile)}
+                        disabled={!manageable}
+                      >
+                        <Text style={[styles.actionText, { color: manageable ? theme.warning : theme.subtext }]}>Бан</Text>
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: manageable ? '#D92D20' : theme.subtext }]} onPress={() => hardDeleteUser(profile)} disabled={!manageable}>
-                      <Text style={styles.actionText}>Удалить навсегда</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: manageable
+                            ? (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1')
+                            : theme.inputBg,
+                          borderColor: manageable ? theme.danger : theme.border,
+                          borderWidth: 1,
+                        }
+                      ]}
+                      onPress={() => hardDeleteUser(profile)}
+                      disabled={!manageable}
+                    >
+                      <Text style={[styles.actionText, { color: manageable ? theme.danger : theme.subtext }]}>Удалить навсегда</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -796,15 +905,24 @@ export default function AdminDashboardScreen() {
         )}
 
         {activeTab === 'events' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Управление ивентами</Text>
             <TextInput
-              style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: theme.inputBg,
+                  borderColor: eventSearchFocused ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
               value={eventSearch}
               onChangeText={setEventSearch}
               placeholder="Поиск ивента"
               placeholderTextColor={theme.subtext}
               autoCorrect={false}
+              onFocus={() => setEventSearchFocused(true)}
+              onBlur={() => setEventSearchFocused(false)}
             />
             <View style={styles.roles}>
               {EVENT_FILTERS.map(filter => (
@@ -839,22 +957,62 @@ export default function AdminDashboardScreen() {
                 </View>
                 <View style={styles.actions}>
                   {event.status !== 'finished' && (
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#2E9E5D' }]} onPress={() => setEventStatus(event, 'finished')}>
-                      <Text style={styles.actionText}>Закрыть</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                          borderColor: theme.success,
+                          borderWidth: 1,
+                        }
+                      ]}
+                      onPress={() => setEventStatus(event, 'finished')}
+                    >
+                      <Text style={[styles.actionText, { color: theme.success }]}>Закрыть</Text>
                     </TouchableOpacity>
                   )}
                   {event.status !== 'cancelled' && (
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#E07B2C' }]} onPress={() => setEventStatus(event, 'cancelled')}>
-                      <Text style={styles.actionText}>Отменить</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+                          borderColor: theme.warning,
+                          borderWidth: 1,
+                        }
+                      ]}
+                      onPress={() => setEventStatus(event, 'cancelled')}
+                    >
+                      <Text style={[styles.actionText, { color: theme.warning }]}>Отменить</Text>
                     </TouchableOpacity>
                   )}
                   {event.status !== 'active' && (
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => setEventStatus(event, 'active')}>
-                      <Text style={styles.actionText}>Активировать</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: theme.accentLight,
+                          borderColor: theme.accent,
+                          borderWidth: 1,
+                        }
+                      ]}
+                      onPress={() => setEventStatus(event, 'active')}
+                    >
+                      <Text style={[styles.actionText, { color: theme.accent }]}>Активировать</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#D92D20' }]} onPress={() => deleteEvent(event)}>
-                    <Text style={styles.actionText}>Удалить</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.actionBtn,
+                      {
+                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1',
+                        borderColor: theme.danger,
+                        borderWidth: 1,
+                      }
+                    ]}
+                    onPress={() => deleteEvent(event)}
+                  >
+                    <Text style={[styles.actionText, { color: theme.danger }]}>Удалить</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -870,7 +1028,7 @@ export default function AdminDashboardScreen() {
 
         {activeTab === 'chats' && (
           <View style={[styles.chatLayout, isWide && styles.chatLayoutWide]}>
-            <View style={[styles.section, isWide && styles.chatListPane, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.chatListPane, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Все чаты</Text>
               {filteredEvents.map(event => (
                 <TouchableOpacity
@@ -888,7 +1046,7 @@ export default function AdminDashboardScreen() {
               ))}
             </View>
 
-            <View style={[styles.section, isWide && styles.chatMessagesPane, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.chatMessagesPane, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>
                 {selectedEvent ? `Чат: ${selectedEvent.title}` : 'Чат'}
               </Text>
@@ -908,8 +1066,18 @@ export default function AdminDashboardScreen() {
                       <Text style={[styles.itemMeta, { color: theme.subtext }]}>{formatDate(message.created_at)}</Text>
                     </View>
                     {!message.is_ai && (
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#FEE4E2' }]} onPress={() => deleteMessage(message)}>
-                        <Text style={[styles.smallBtnText, { color: '#D92D20' }]}>Удалить</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.smallBtn,
+                          {
+                            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1',
+                            borderColor: theme.danger,
+                            borderWidth: 1,
+                          }
+                        ]}
+                        onPress={() => deleteMessage(message)}
+                      >
+                        <Text style={[styles.smallBtnText, { color: theme.danger }]}>Удалить</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -920,7 +1088,7 @@ export default function AdminDashboardScreen() {
         )}
 
         {activeTab === 'history' && (
-          <View style={[styles.section, { backgroundColor: theme.card }]}>
+          <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
             <Text style={[styles.sectionTitle, { color: theme.subtext }]}>История действий админов</Text>
             {auditLogs.length === 0 ? (
               <View style={[styles.emptyPanel, { backgroundColor: theme.bg, borderColor: theme.border }]}>
@@ -947,36 +1115,54 @@ export default function AdminDashboardScreen() {
 
         {activeTab === 'tools' && (
           <View style={[styles.toolsLayout, isWide && styles.toolsLayoutWide]}>
-            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Broadcast всем пользователям</Text>
               <TextInput
-                style={[styles.searchInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                style={[
+                  styles.searchInput,
+                  {
+                    backgroundColor: theme.inputBg,
+                    borderColor: broadcastTitleFocused ? theme.accent : theme.border,
+                    color: theme.text,
+                  }
+                ]}
                 value={broadcastTitle}
                 onChangeText={setBroadcastTitle}
                 placeholder="Заголовок"
                 placeholderTextColor={theme.subtext}
+                onFocus={() => setBroadcastTitleFocused(true)}
+                onBlur={() => setBroadcastTitleFocused(false)}
               />
               <TextInput
-                style={[styles.textArea, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: theme.inputBg,
+                    borderColor: broadcastBodyFocused ? theme.accent : theme.border,
+                    color: theme.text,
+                  }
+                ]}
                 value={broadcastBody}
                 onChangeText={setBroadcastBody}
                 placeholder="Текст объявления"
                 placeholderTextColor={theme.subtext}
                 multiline
+                onFocus={() => setBroadcastBodyFocused(true)}
+                onBlur={() => setBroadcastBodyFocused(false)}
               />
               <TouchableOpacity style={[styles.sendWideBtn, { backgroundColor: theme.accent }]} onPress={sendBroadcast} disabled={sendingBroadcast}>
                 <Text style={styles.actionText}>{sendingBroadcast ? 'Отправляем...' : 'Отправить всем'}</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card }]}>
+            <View style={[styles.section, isWide && styles.toolsPane, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
               <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Системные настройки</Text>
               {settings.map(setting => (
                 <View key={setting.key} style={[styles.eventCard, { borderTopColor: theme.border }]}>
                   <Text style={[styles.itemTitle, { color: theme.text }]}>{setting.key}</Text>
                   {setting.description ? <Text style={[styles.itemMeta, { color: theme.subtext }]}>{setting.description}</Text> : null}
                   <TextInput
-                    style={[styles.searchInputInline, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+                    style={[styles.searchInputInline, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
                     defaultValue={setting.value}
                     placeholderTextColor={theme.subtext}
                     autoCapitalize="none"
@@ -1003,35 +1189,32 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   hero: {
     borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12,
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05, shadowRadius: 18, elevation: 2,
+    shadowOffset: { width: 0, height: 8 }, shadowRadius: 18, elevation: 2,
   },
   heroTitle: { fontSize: 22, fontWeight: '900' },
   heroText: { fontSize: 13, lineHeight: 18, marginTop: 6 },
   quickActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
   quickBtn: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   quickBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
-  tab: { minWidth: '31%', flexGrow: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-  tabText: { fontSize: 13, fontWeight: '800' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, borderRadius: 16, padding: 4, marginBottom: 16, borderWidth: 1 },
+  tab: { minWidth: '30%', flexGrow: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 12 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
   statsGridInner: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16, shadowColor: '#101828', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 14, elevation: 1 },
+  statCard: { width: '48%', borderWidth: 1, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 6 }, shadowRadius: 14, elevation: 1 },
   statCardWide: { width: '32%' },
-  statCardSmall: { width: '48%', borderWidth: 1, borderRadius: 14, padding: 12, shadowColor: '#101828', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 },
+  statCardSmall: { width: '48%', borderWidth: 1, borderRadius: 14, padding: 12, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 1 },
   statCardSmallWide: { width: '23.5%' },
   statValue: { fontSize: 28, fontWeight: '900' },
   statValueSmall: { fontSize: 22, fontWeight: '900' },
   statLabel: { fontSize: 12, marginTop: 4 },
   section: {
-    borderRadius: 16, overflow: 'hidden', marginBottom: 12,
-    borderWidth: 1, borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05, shadowRadius: 16, elevation: 2,
+    borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 }, shadowRadius: 16, elevation: 2,
   },
   sectionTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', padding: 16, paddingBottom: 8 },
   searchInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 14,
     fontSize: 14,
     marginHorizontal: 16,
@@ -1040,7 +1223,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   searchInputInline: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 14,
     fontSize: 14,
     marginTop: 10,
@@ -1048,7 +1231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   textArea: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 14,
     fontSize: 14,
     minHeight: 88,
@@ -1069,11 +1252,11 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: 12, marginTop: 3 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   roles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, paddingHorizontal: 16 },
-  roleBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
+  roleBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   roleText: { fontSize: 12, fontWeight: '800' },
-  actionBtn: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  actionBtn: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   sendWideBtn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginHorizontal: 16, marginBottom: 16 },
-  actionText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  actionText: { fontSize: 12, fontWeight: '800' },
   smallBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
   smallBtnText: { fontSize: 12, fontWeight: '800' },
   chatLayout: { gap: 0 },

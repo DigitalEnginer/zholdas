@@ -1,30 +1,32 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  SafeAreaView, TextInput, Alert,
+  SafeAreaView, TextInput, Alert, ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, categoryLabels, eventStatusLabels } from '../data/mockEvents';
+import { categoryLabels, eventStatusLabels } from '../data/mockEvents';
 import EventCard from '../components/EventCard';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance, getDistanceKm } from '../hooks/useLocation';
+import { useTheme } from '../context/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
-const FILTERS: Array<{ key: 'all' | EventCategory; label: string; emoji: string }> = [
-  { key: 'all', label: 'Все', emoji: '🌟' },
-  { key: 'mountains', label: 'Горы', emoji: '⛰️' },
-  { key: 'theatre', label: 'Театр', emoji: '🎭' },
-  { key: 'restaurant', label: 'Ресторан', emoji: '🍽️' },
-  { key: 'sport', label: 'Спорт', emoji: '⚽' },
-  { key: 'other', label: 'Другое', emoji: '✨' },
+const FILTERS: Array<{ key: 'all' | EventCategory; label: string }> = [
+  { key: 'all', label: 'Все' },
+  { key: 'mountains', label: 'Горы' },
+  { key: 'theatre', label: 'Театр' },
+  { key: 'restaurant', label: 'Ресторан' },
+  { key: 'sport', label: 'Спорт' },
+  { key: 'other', label: 'Другое' },
 ];
 
 export default function ListScreen() {
   const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
   const { events, joinEvent, leaveEvent, isJoined } = useEvents();
   const { user } = useAuth();
   const userLocation = useLocation();
@@ -79,16 +81,17 @@ export default function ListScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
-            <Text style={styles.title}>Ивенты</Text>
-            <Text style={styles.subtitle}>Быстро найди активность рядом</Text>
+            <Text style={[styles.title, { color: theme.text }]}>События</Text>
+            <Text style={[styles.subtitle, { color: theme.subtext }]}>Быстро найди активность рядом</Text>
           </View>
           <TouchableOpacity
-            style={styles.createBtn}
+            style={[styles.createBtn, { backgroundColor: theme.accent }]}
             onPress={() => navigation.navigate('CreateEvent')}
+            activeOpacity={0.8}
           >
             <Text style={styles.createBtnText}>+ Создать</Text>
           </TouchableOpacity>
@@ -96,36 +99,76 @@ export default function ListScreen() {
 
         <View style={styles.searchRow}>
           <TextInput
-            style={styles.searchInput}
-            placeholder="🔍  Поиск ивентов..."
-            placeholderTextColor="#98A2B3"
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: theme.inputBg,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+            ]}
+            placeholder="Поиск событий..."
+            placeholderTextColor={theme.subtext}
             value={search}
             onChangeText={setSearch}
             clearButtonMode="while-editing"
           />
           <TouchableOpacity
-            style={[styles.joinedToggle, showJoinedOnly && styles.joinedToggleActive]}
+            style={[
+              styles.joinedToggle,
+              {
+                backgroundColor: showJoinedOnly ? theme.accent : theme.inputBg,
+                borderColor: showJoinedOnly ? theme.accent : theme.border,
+              },
+            ]}
             onPress={() => setShowJoinedOnly(v => !v)}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.joinedToggleText, showJoinedOnly && styles.joinedToggleTextActive]}>Мои</Text>
+            <Text
+              style={[
+                styles.joinedToggleText,
+                { color: showJoinedOnly ? '#FFFFFF' : theme.text },
+              ]}
+            >
+              Мои
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.filters}>
-        {FILTERS.map(filter => (
-          <TouchableOpacity
-            key={filter.key}
-            style={[styles.filterChip, activeFilter === filter.key && styles.filterChipActive]}
-            onPress={() => setActiveFilter(filter.key)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.filterEmoji}>{filter.emoji}</Text>
-            <Text style={[styles.filterLabel, activeFilter === filter.key && styles.filterLabelActive]}>
-              {filter.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.filtersScrollContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersScroll}
+        >
+          {FILTERS.map(filter => {
+            const isActive = activeFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive ? theme.accent : theme.card,
+                    borderColor: isActive ? theme.accent : theme.border,
+                  },
+                ]}
+                onPress={() => setActiveFilter(filter.key)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    { color: isActive ? '#FFFFFF' : theme.subtext },
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <View style={styles.quickFilters}>
@@ -133,22 +176,50 @@ export default function ListScreen() {
           { key: 'active', label: 'Активные', onPress: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active'), active: statusFilter === 'active' },
           { key: 'available', label: 'Есть места', onPress: () => setAvailableOnly(v => !v), active: availableOnly },
           { key: 'near', label: 'Рядом', onPress: () => setNearOnly(v => !v), active: nearOnly },
-        ].map(item => (
-          <TouchableOpacity key={item.key} style={[styles.quickChip, item.active && styles.quickChipActive]} onPress={item.onPress}>
-            <Text style={[styles.quickText, item.active && styles.quickTextActive]}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+        ].map(item => {
+          const isActive = item.active;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.quickChip,
+                {
+                  backgroundColor: isActive ? theme.accentLight : theme.card,
+                  borderColor: isActive ? theme.accent : theme.border,
+                },
+              ]}
+              onPress={item.onPress}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.quickText,
+                  { color: isActive ? theme.accentText : theme.subtext },
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
         <TouchableOpacity
-          style={styles.quickChip}
+          style={[
+            styles.quickChip,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+            },
+          ]}
           onPress={() => setSortMode(sortMode === 'new' ? 'near' : sortMode === 'near' ? 'popular' : 'new')}
+          activeOpacity={0.8}
         >
-          <Text style={styles.quickText}>
+          <Text style={[styles.quickText, { color: theme.subtext }]}>
             {sortMode === 'near' ? 'Сначала рядом' : sortMode === 'popular' ? 'Популярные' : 'Новые'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.count}>
+      <Text style={[styles.count, { color: theme.subtext }]}>
         {filtered.length} активност{filtered.length === 1 ? 'ь' : 'и'}
         {statusFilter !== 'all' ? ` · ${eventStatusLabels[statusFilter]}` : ''}
       </Text>
@@ -168,10 +239,11 @@ export default function ListScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyText}>Ничего не найдено</Text>
-            <Text style={styles.emptyHint}>Попробуй убрать фильтр или поискать другое место</Text>
+          <View style={[styles.empty, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.emptyText, { color: theme.text }]}>Ничего не найдено</Text>
+            <Text style={[styles.emptyHint, { color: theme.subtext }]}>
+              Попробуйте убрать фильтр или поискать другое место
+            </Text>
           </View>
         }
       />
@@ -180,60 +252,87 @@ export default function ListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  container: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, width: '100%', maxWidth: 960, alignSelf: 'center' },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   titleBlock: { flex: 1, paddingRight: 12 },
-  title: { fontSize: 28, fontWeight: '900', color: '#111827' },
-  subtitle: { fontSize: 13, color: '#667085', marginTop: 2, fontWeight: '600' },
-  createBtn: { backgroundColor: '#4F46E5', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 },
-  createBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  subtitle: { fontSize: 13, marginTop: 2, fontWeight: '500' },
+  createBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  createBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
   searchRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   searchInput: {
-    flex: 1, backgroundColor: '#FFF', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#111827', borderWidth: 1.5, borderColor: '#E4E7EC',
+    flex: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    fontSize: 14,
+    borderWidth: 1,
   },
   joinedToggle: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC', justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
   },
-  joinedToggleActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
-  joinedToggleText: { fontSize: 13, fontWeight: '800', color: '#4338CA' },
-  joinedToggleTextActive: { color: '#FFF' },
-  filters: { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 6, flexWrap: 'wrap', width: '100%', maxWidth: 960, alignSelf: 'center' },
+  joinedToggleText: { fontSize: 13, fontWeight: '700' },
+  filtersScrollContainer: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
+  filtersScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 4,
+  },
   filterChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  filterChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
-  filterEmoji: { fontSize: 13 },
-  filterLabel: { fontSize: 13, color: '#475467', fontWeight: '700' },
-  filterLabelActive: { color: '#FFF', fontWeight: '700' },
-  quickFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12, paddingBottom: 8, width: '100%', maxWidth: 960, alignSelf: 'center' },
+  filterLabel: { fontSize: 13, fontWeight: '600' },
+  quickFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+  },
   quickChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E4E7EC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  quickChipActive: { backgroundColor: '#EEF2FF', borderColor: '#4F46E5' },
-  quickText: { fontSize: 12, color: '#667085', fontWeight: '800' },
-  quickTextActive: { color: '#4338CA' },
-  count: { fontSize: 12, color: '#98A2B3', paddingHorizontal: 16, marginBottom: 4, width: '100%', maxWidth: 960, alignSelf: 'center' },
+  quickText: { fontSize: 12, fontWeight: '600' },
+  count: { fontSize: 12, paddingHorizontal: 16, marginBottom: 4, width: '100%', maxWidth: 960, alignSelf: 'center', fontWeight: '500' },
   list: { paddingVertical: 4, paddingBottom: 24, paddingHorizontal: 0, width: '100%', maxWidth: 792, alignSelf: 'center' },
   empty: {
     alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 48,
-    paddingVertical: 30,
+    paddingVertical: 32,
     paddingHorizontal: 18,
-    backgroundColor: '#FFF',
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D0D5DD',
     borderRadius: 16,
   },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyText: { fontSize: 15, color: '#667085', fontWeight: '800' },
-  emptyHint: { fontSize: 12, color: '#98A2B3', marginTop: 4, textAlign: 'center' },
+  emptyText: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyHint: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
 });

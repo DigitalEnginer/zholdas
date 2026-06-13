@@ -5,27 +5,96 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useHaptics } from '../hooks/useHaptics';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+const ZholdasLogo = ({ theme }: { theme: any }) => (
+  <View style={logoStyles.container}>
+    <LinearGradient
+      colors={[theme.accent, '#4F46E5']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={logoStyles.gradient}
+    >
+      <View style={logoStyles.innerBorder}>
+        <Text style={logoStyles.text}>ZH</Text>
+      </View>
+    </LinearGradient>
+    <View style={[logoStyles.circleIndicator, { backgroundColor: theme.success, borderColor: theme.bg }]} />
+  </View>
+);
+
+const logoStyles = StyleSheet.create({
+  container: {
+    width: 64,
+    height: 64,
+    position: 'relative',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  gradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  innerBorder: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  text: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  circleIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2.5,
+  },
+});
 
 export default function LoginScreen() {
   const navigation = useNavigation<Nav>();
   const { login } = useAuth();
+  const { theme } = useTheme();
   const haptics = useHaptics();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   function validate() {
     const e: typeof errors = {};
-    if (!email.trim()) e.email = 'Введите email';
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Неверный формат email';
-    if (!password) e.password = 'Введите пароль';
+    if (!email.trim()) e.email = t('emailRequired');
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email = t('invalidEmail');
+    if (!password) e.password = t('passwordRequired');
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -45,53 +114,75 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.hero}>
-            <Text style={styles.logo}>🤝</Text>
-            <Text style={styles.appName}>Жолдас</Text>
-            <Text style={styles.tagline}>Найди компанию в Алматы</Text>
+            <ZholdasLogo theme={theme} />
+            <Text style={[styles.appName, { color: theme.text }]}>Жолдас</Text>
+            <Text style={[styles.tagline, { color: theme.subtext }]}>{t('loginTitle')}</Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Войти</Text>
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>{t('loginButton')}</Text>
 
-            <Text style={styles.label}>Email</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>Email</Text>
             <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
+              style={[
+                styles.input,
+                { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border },
+                isEmailFocused && { borderColor: theme.accent },
+                errors.email && { borderColor: theme.danger },
+              ]}
               placeholder="your@email.com"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={theme.subtext + 'AA'}
               value={email}
-              onChangeText={t => { setEmail(t); setErrors(e => ({ ...e, email: undefined })); }}
+              onChangeText={value => { setEmail(value); setErrors(e => ({ ...e, email: undefined })); }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              onFocus={() => setIsEmailFocused(true)}
+              onBlur={() => setIsEmailFocused(false)}
             />
-            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+            {errors.email && <Text style={[styles.errorText, { color: theme.danger }]}>{errors.email}</Text>}
 
-            <Text style={styles.label}>Пароль</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('passwordPlaceholder')}</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
-                placeholder="••••••••"
-                placeholderTextColor="#BBB"
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border },
+                  isPasswordFocused && { borderColor: theme.accent },
+                  errors.password && { borderColor: theme.danger },
+                ]}
+                placeholder="********"
+                placeholderTextColor={theme.subtext + 'AA'}
                 value={password}
-                onChangeText={t => { setPassword(t); setErrors(e => ({ ...e, password: undefined })); }}
+                onChangeText={value => { setPassword(value); setErrors(e => ({ ...e, password: undefined })); }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                onFocus={() => setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
               />
               <TouchableOpacity
                 style={styles.eyeBtn}
                 onPress={() => setShowPassword(v => !v)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Text style={[styles.eyeText, { color: theme.accent }]}>
+                  {showPassword ? t('hide') : t('show')}
+                </Text>
               </TouchableOpacity>
             </View>
-            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            {errors.password && <Text style={[styles.errorText, { color: theme.danger }]}>{errors.password}</Text>}
 
-            <TouchableOpacity style={styles.forgotBtn} onPress={() => Alert.alert('Восстановление пароля', 'Письмо с инструкциями отправлено на ' + email)}>
-              <Text style={styles.forgotText}>Забыли пароль?</Text>
+            <TouchableOpacity
+              style={styles.forgotBtn}
+              onPress={() => Alert.alert(t('restorePassword'), t('restorePasswordSent'))}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.forgotText, { color: theme.accent }]}>{t('forgotPassword')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -100,21 +191,28 @@ export default function LoginScreen() {
               disabled={loading}
               activeOpacity={0.85}
             >
-              <Text style={styles.loginBtnText}>{loading ? 'Входим...' : 'Войти'}</Text>
+              <LinearGradient
+                colors={loading ? [theme.accent + '88', theme.accent + '88'] : [theme.accent, '#4F46E5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.loginGradient}
+              >
+                <Text style={styles.loginBtnText}>{loading ? t('loading') : t('loginButton')}</Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>или</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.subtext }]}>{t('or')}</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
             </View>
 
             <TouchableOpacity
-              style={styles.registerBtn}
+              style={[styles.registerBtn, { borderColor: theme.accent }]}
               onPress={() => navigation.navigate('Register' as any)}
               activeOpacity={0.85}
             >
-              <Text style={styles.registerBtnText}>Создать аккаунт</Text>
+              <Text style={[styles.registerBtnText, { color: theme.accent }]}>{t('registerButton')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -124,48 +222,52 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  container: { flex: 1 },
   flex: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 40 },
-  hero: { alignItems: 'center', paddingTop: 28, paddingBottom: 22 },
-  logo: { fontSize: 56, marginBottom: 10 },
-  appName: { fontSize: 32, fontWeight: '900', color: '#111827' },
-  tagline: { fontSize: 15, color: '#667085', marginTop: 4 },
+  hero: { alignItems: 'center', paddingTop: 36, paddingBottom: 24 },
+  appName: { fontSize: 32, fontWeight: '900', marginTop: 4, letterSpacing: -0.5 },
+  tagline: { fontSize: 15, marginTop: 6, fontWeight: '500' },
   card: {
-    backgroundColor: '#FFF', borderRadius: 18, padding: 24,
-    borderWidth: 1, borderColor: '#E4E7EC',
-    width: '100%', maxWidth: 560, alignSelf: 'center',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08, shadowRadius: 24, elevation: 4,
+    borderRadius: 24, padding: 24,
+    borderWidth: 1,
+    width: '100%', maxWidth: 480, alignSelf: 'center',
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06, shadowRadius: 24, elevation: 4,
   },
-  cardTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '700', color: '#667085', marginBottom: 6, marginTop: 14, textTransform: 'uppercase' },
+  cardTitle: { fontSize: 24, fontWeight: '900', marginBottom: 20, letterSpacing: -0.5 },
+  label: { fontSize: 12, fontWeight: '700', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
-    backgroundColor: '#F9FAFB', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-    fontSize: 15, color: '#111827',
-    borderWidth: 1.5, borderColor: '#E4E7EC', flex: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15,
+    borderWidth: 1.5,
   },
-  inputError: { borderColor: '#D92D20' },
-  passwordRow: { flexDirection: 'row', alignItems: 'center' },
-  passwordInput: { borderRadius: 14 },
-  eyeBtn: { position: 'absolute', right: 14, padding: 4 },
-  eyeText: { fontSize: 18 },
-  errorText: { fontSize: 12, color: '#D92D20', marginTop: 4 },
-  forgotBtn: { alignSelf: 'flex-end', marginTop: 8 },
-  forgotText: { fontSize: 13, color: '#4F46E5', fontWeight: '700' },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  passwordInput: { borderRadius: 16, flex: 1 },
+  eyeBtn: { position: 'absolute', right: 16, padding: 8 },
+  eyeText: { fontSize: 13, fontWeight: '700' },
+  errorText: { fontSize: 12, marginTop: 6, fontWeight: '500' },
+  forgotBtn: { alignSelf: 'flex-end', marginTop: 12, paddingVertical: 4 },
+  forgotText: { fontSize: 13, fontWeight: '700' },
   loginBtn: {
-    backgroundColor: '#4F46E5', borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', marginTop: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 28,
   },
-  loginBtnDisabled: { backgroundColor: '#C7D2FE' },
+  loginGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginBtnDisabled: { opacity: 0.6 },
   loginBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#E4E7EC' },
-  dividerText: { fontSize: 13, color: '#98A2B3' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 24 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 13, fontWeight: '500' },
   registerBtn: {
-    borderRadius: 14, paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#4F46E5',
+    borderRadius: 16, paddingVertical: 15, alignItems: 'center',
+    borderWidth: 2,
   },
-  registerBtnText: { fontSize: 16, fontWeight: '800', color: '#4F46E5' },
+  registerBtnText: { fontSize: 16, fontWeight: '800' },
 });

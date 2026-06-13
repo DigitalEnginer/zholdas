@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Image, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Message } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useHaptics } from '../hooks/useHaptics';
 
 interface Props {
@@ -19,8 +21,9 @@ function formatTime(date: Date): string {
 }
 
 export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, onDelete }: Props) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const haptics = useHaptics();
+  const { t } = useLanguage();
   const [reactions, setReactions] = useState<Record<string, number>>(
     Object.fromEntries(Object.entries(message.reactions ?? {}).map(([k, v]) => [k, v.length]))
   );
@@ -38,11 +41,22 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
   if (message.isAI) {
     return (
       <View style={styles.aiWrapper}>
-        <View style={[styles.aiMessage, { backgroundColor: theme.card }]}>
-          <Text style={styles.aiLabel}>🤖 Жолдас AI</Text>
-          <Text style={[styles.aiText, { color: theme.text }]}>{message.text}</Text>
-          <Text style={[styles.aiTime, { color: theme.subtext }]}>{formatTime(message.timestamp)}</Text>
-        </View>
+        <LinearGradient
+          colors={['#2563EB', '#7C3AED', '#DB2777']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.aiGradientBorder}
+        >
+          <View style={[styles.aiMessage, { backgroundColor: theme.card }]}>
+            <View style={styles.aiHeader}>
+              <View style={[styles.aiBadge, { backgroundColor: theme.accentLight }]}>
+                <Text style={[styles.aiBadgeText, { color: theme.accent }]}>ZHOLDAS AI</Text>
+              </View>
+              <Text style={[styles.aiTime, { color: theme.subtext }]}>{formatTime(message.timestamp)}</Text>
+            </View>
+            <Text style={[styles.aiText, { color: theme.text }]}>{message.text}</Text>
+          </View>
+        </LinearGradient>
       </View>
     );
   }
@@ -61,7 +75,22 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
           activeOpacity={0.85}
           onLongPress={() => { haptics.medium(); setShowPicker(v => !v); }}
         >
-          <View style={[styles.bubble, isOwn ? [styles.bubbleOwn, { backgroundColor: theme.accent }] : [styles.bubbleOther, { backgroundColor: theme.card }]]}>
+          <View
+            style={[
+              styles.bubble,
+              isOwn
+                ? [styles.bubbleOwn, { backgroundColor: theme.accent }]
+                : [
+                    styles.bubbleOther,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      shadowColor: isDark ? '#000' : '#0F172A',
+                      shadowOpacity: isDark ? 0.35 : 0.04,
+                    }
+                  ]
+            ]}
+          >
             {!isOwn && (
               <Text style={[styles.userName, { color: theme.accent }]}>{message.userName}</Text>
             )}
@@ -78,7 +107,18 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
         </TouchableOpacity>
 
         {showPicker && (
-          <View style={[styles.actionPanel, { backgroundColor: theme.card }, isOwn && styles.actionPanelOwn]}>
+          <View
+            style={[
+              styles.actionPanel,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                shadowColor: isDark ? '#000' : '#0F172A',
+                shadowOpacity: isDark ? 0.4 : 0.05,
+              },
+              isOwn && styles.actionPanelOwn
+            ]}
+          >
             <View style={styles.reactionPicker}>
               {REACTION_EMOJIS.map(e => (
                 <TouchableOpacity key={e} onPress={() => addReaction(e)} style={styles.reactionOption}>
@@ -90,18 +130,26 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
               <View style={[styles.messageActions, { borderTopColor: theme.border }]}>
                 {onReport && (
                   <TouchableOpacity
-                    style={[styles.actionButton, styles.reportButton]}
+                    style={[
+                      styles.actionButton,
+                      styles.reportButton,
+                      { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFF3DC' }
+                    ]}
                     onPress={() => { setShowPicker(false); onReport(); }}
                   >
-                    <Text style={styles.reportButtonText}>Пожаловаться</Text>
+                    <Text style={[styles.reportButtonText, { color: isDark ? '#FCD34D' : '#E07B2C' }]}>{t('reportTitle')}</Text>
                   </TouchableOpacity>
                 )}
                 {onDelete && (
                   <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
+                    style={[
+                      styles.actionButton,
+                      styles.deleteButton,
+                      { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE4E2' }
+                    ]}
                     onPress={() => { setShowPicker(false); onDelete(); }}
                   >
-                    <Text style={styles.deleteButtonText}>Удалить</Text>
+                    <Text style={[styles.deleteButtonText, { color: isDark ? '#F87171' : '#D92D20' }]}>{t('delete')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -117,7 +165,7 @@ export default function ChatMessage({ message, isOwn, onAvatarPress, onReport, o
                 style={[styles.reactionBadge, { backgroundColor: theme.accentLight }]}
                 onPress={() => addReaction(emoji)}
               >
-                <Text style={styles.reactionBadgeText}>{emoji} {count}</Text>
+                <Text style={[styles.reactionBadgeText, { color: theme.text }]}>{emoji} {count}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -140,9 +188,8 @@ const styles = StyleSheet.create({
   bubbleOther: {
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6, elevation: 2,
   },
   userName: { fontSize: 11, fontWeight: '700', marginBottom: 3 },
   text: { fontSize: 15, lineHeight: 20 },
@@ -152,9 +199,8 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 6,
     marginTop: 4, alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1, shadowRadius: 18, elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18, elevation: 4,
   },
   actionPanelOwn: { alignSelf: 'flex-end' },
   reactionPicker: { flexDirection: 'row', gap: 4 },
@@ -162,23 +208,41 @@ const styles = StyleSheet.create({
   reactionOptionText: { fontSize: 22 },
   messageActions: { flexDirection: 'row', gap: 6, borderTopWidth: 1, marginTop: 4, paddingTop: 6 },
   actionButton: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
-  reportButton: { backgroundColor: '#FFF3DC' },
-  reportButtonText: { color: '#E07B2C', fontSize: 12, fontWeight: '800' },
-  deleteButton: { backgroundColor: '#FEE4E2' },
-  deleteButtonText: { color: '#D92D20', fontSize: 12, fontWeight: '800' },
+  reportButton: {},
+  reportButtonText: { fontSize: 12, fontWeight: '800' },
+  deleteButton: {},
+  deleteButtonText: { fontSize: 12, fontWeight: '800' },
   reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
   reactionsRowOwn: { justifyContent: 'flex-end' },
   reactionBadge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
   reactionBadgeText: { fontSize: 12 },
-  aiWrapper: { paddingHorizontal: 12, marginVertical: 4, alignItems: 'center' },
-  aiMessage: {
-    borderRadius: 14, padding: 12, maxWidth: '88%',
-    borderLeftWidth: 3, borderLeftColor: '#F5A623',
-    borderTopWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
+  aiWrapper: { paddingHorizontal: 12, marginVertical: 6, alignItems: 'center', width: '100%' },
+  aiGradientBorder: {
+    borderRadius: 16,
+    padding: 1.5,
+    maxWidth: '88%',
+    width: '100%',
   },
-  aiLabel: { fontSize: 11, fontWeight: '700', color: '#E07B2C', marginBottom: 4 },
+  aiMessage: {
+    borderRadius: 15,
+    padding: 12,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  aiBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  aiBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
   aiText: { fontSize: 14, lineHeight: 20 },
-  aiTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+  aiTime: { fontSize: 10 },
 });

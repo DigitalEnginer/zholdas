@@ -12,6 +12,7 @@ import ChatMessage from '../components/ChatMessage';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useHaptics } from '../hooks/useHaptics';
 import { supabase } from '../lib/supabase';
 import { eventStatusLabels } from '../data/mockEvents';
@@ -36,14 +37,12 @@ function transformDbMessage(raw: any): Message {
   };
 }
 
-async function askOpenAI(question: string, eventTitle: string, eventId: string): Promise<{ reply: string; saved: boolean }> {
-  const fallbackResponses = [
-    `Отличный вопрос про "${eventTitle}"! Рекомендую прийти за 10-15 минут до начала.`,
-    `По ивенту "${eventTitle}": обычно все очень дружелюбны, не стесняйся знакомиться!`,
-    `Для "${eventTitle}" советую взять воду и хорошее настроение 😊`,
-    `Ивент "${eventTitle}" — популярное место. Участники договариваются в этом чате.`,
-  ];
-
+async function askOpenAI(
+  question: string,
+  eventTitle: string,
+  eventId: string,
+  fallbackResponses: string[],
+): Promise<{ reply: string; saved: boolean }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const accessToken = session?.access_token;
@@ -89,8 +88,9 @@ export default function ChatScreen() {
   const { eventId, eventTitle } = route.params;
   const { user } = useAuth();
   const { events, leaveEvent, isJoined, updateEventStatus } = useEvents();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const haptics = useHaptics();
+  const { t } = useLanguage();
   const event = events.find(e => e.id === eventId);
   const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const canModerateChat = canManageEvent;
@@ -112,17 +112,17 @@ export default function ChatScreen() {
       headerRight: () => (
         <View style={{ flexDirection: 'row', gap: 8, marginRight: 4 }}>
           <TouchableOpacity onPress={handleShare}>
-            <Text style={{ fontSize: 20 }}>📤</Text>
+            <Text style={{ fontSize: 20 }}>↗</Text>
           </TouchableOpacity>
           {canManageEvent && (
             <TouchableOpacity onPress={handleCreatorMenu}>
-              <Text style={{ fontSize: 20 }}>⋯</Text>
+              <Text style={{ fontSize: 20 }}>...</Text>
             </TouchableOpacity>
           )}
         </View>
       ),
     });
-  }, [eventTitle, canManageEvent, eventStatus]);
+  }, [eventTitle, canManageEvent, eventStatus, inputText]);
 
   useEffect(() => {
     loadMessages();
@@ -136,14 +136,14 @@ export default function ChatScreen() {
           if (bannedUserIds.has(payload.new.user_id) || blockedUserIds.has(payload.new.user_id)) return;
           setMessages(prev => [...prev, transformDbMessage(payload.new)]);
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-        }
+        },
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'messages', filter: `event_id=eq.${eventId}` },
         (payload: any) => {
           setMessages(prev => prev.filter(message => message.id !== payload.old.id));
-        }
+        },
       )
       .subscribe();
 
@@ -161,7 +161,7 @@ export default function ChatScreen() {
       const userIds = Array.from(new Set(
         data
           .map((m: any) => m.user_id)
-          .filter((id: string) => id && id !== 'ai')
+          .filter((id: string) => id && id !== 'ai'),
       ));
       const { data: bannedProfiles } = userIds.length > 0
         ? await supabase.from('profiles').select('id').in('id', userIds).eq('is_banned', true)
@@ -181,13 +181,13 @@ export default function ChatScreen() {
 
   async function sendMessage(text: string, isAI = false, imageUri?: string) {
     if (!isAI && !user) {
-      throw new Error('Нужно войти в аккаунт');
+      throw new Error(t('passwordRequired'));
     }
 
     const { error } = await supabase.from('messages').insert({
       event_id: eventId,
       user_id: isAI ? 'ai' : (user?.id ?? 'anon'),
-      user_name: isAI ? 'Жолдас AI' : (user?.name ?? 'Вы'),
+      user_name: isAI ? 'Жолдас AI' : (user?.name ?? t('userLabel')),
       text,
       image_url: imageUri ?? null,
       is_ai: isAI,
@@ -201,11 +201,11 @@ export default function ChatScreen() {
     if (!text) return;
     const moderation = validateChatMessage(text);
     if (!moderation.ok) {
-      Alert.alert('Модерация', moderation.message);
+      Alert.alert(t('moderationPanel'), moderation.message);
       return;
     }
     if (!joined && event?.createdBy !== user?.id && user?.role !== 'moderator' && user?.role !== 'admin') {
-      Alert.alert('', 'Сначала вступи в ивент, чтобы писать в чат');
+      Alert.alert('', t('chatJoinFirst'));
       return;
     }
 
@@ -215,7 +215,7 @@ export default function ChatScreen() {
       await sendMessage(text);
     } catch (e: any) {
       setInputText(text);
-      Alert.alert('Не удалось отправить сообщение', e.message ?? 'Проверь RLS policies для messages');
+      Alert.alert(t('messageSendError'), e.message ?? t('error'));
     }
   }
 
@@ -224,7 +224,7 @@ export default function ChatScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('', 'Нужен доступ к фото');
+      Alert.alert('', t('photoPickError'));
       return;
     }
 
@@ -247,7 +247,7 @@ export default function ChatScreen() {
       setInputText('');
       haptics.medium();
     } catch (e: any) {
-      Alert.alert('Не удалось отправить фото', e.message ?? 'Проверь Supabase Storage');
+      Alert.alert(t('photoSendError'), e.message ?? t('error'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -256,17 +256,17 @@ export default function ChatScreen() {
   async function handleShare() {
     haptics.medium();
     await Share.share({
-      message: `Присоединяйся к ивенту "${eventTitle}" в приложении Жолдас! 🤝`,
+      message: `${t('chatShareMsg')} "${eventTitle}"`,
       title: eventTitle,
     });
   }
 
   function handleLeave() {
     if (!user) return;
-    Alert.alert('Покинуть ивент?', 'Ты выйдешь из группы и чата', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('chatLeavePrompt'), t('chatLeaveText'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Покинуть', style: 'destructive', onPress: async () => {
+        text: t('leaveBtn'), style: 'destructive', onPress: async () => {
           haptics.medium();
           await leaveEvent(eventId, user.id);
           navigation.goBack();
@@ -280,43 +280,43 @@ export default function ChatScreen() {
       await updateEventStatus(eventId, status, cancelReason);
       haptics.medium();
     } catch (e: any) {
-      Alert.alert('Ошибка', e.message ?? 'Не удалось изменить статус');
+      Alert.alert(t('error'), e.message ?? t('error'));
     }
   }
 
   function cancelEvent() {
     if (Platform.OS === 'ios') {
-      Alert.prompt('Причина отмены', 'Участники увидят эту причину', [
-        { text: 'Назад', style: 'cancel' },
-        { text: 'Отменить ивент', style: 'destructive', onPress: (reason?: string) => changeEventStatus('cancelled', reason || 'Ивент отменен') },
+      Alert.prompt(t('cancelReason'), t('cancelReason'), [
+        { text: t('back'), style: 'cancel' },
+        { text: t('cancel'), style: 'destructive', onPress: (reason?: string) => changeEventStatus('cancelled', reason || t('cancelNotice')) },
       ]);
       return;
     }
 
-    changeEventStatus('cancelled', 'Ивент отменен');
+    changeEventStatus('cancelled', t('cancelNotice'));
   }
 
   function handleCreatorMenu() {
-    Alert.alert(eventTitle, 'Управление ивентом', [
+    Alert.alert(eventTitle, t('eventManageTitle'), [
       ...(eventStatus !== 'finished' ? [{
-        text: '✅ Завершить ивент',
+        text: t('finishEventAction'),
         onPress: () => changeEventStatus('finished' as EventStatus),
       }] : []),
       ...(eventStatus !== 'cancelled' ? [{
-        text: '🚫 Отменить ивент',
+        text: t('cancelEventAction'),
         style: 'destructive' as const,
         onPress: cancelEvent,
       }] : []),
       ...(eventStatus !== 'active' ? [{
-        text: '🔄 Вернуть в активные',
+        text: t('reactivateEventAction'),
         onPress: () => changeEventStatus('active' as EventStatus),
       }] : []),
       {
-        text: '🗑 Удалить ивент', style: 'destructive', onPress: () => {
-          Alert.alert('Удалить ивент?', 'Это действие нельзя отменить', [
-            { text: 'Отмена', style: 'cancel' },
+        text: t('deleteEventAction'), style: 'destructive' as const, onPress: () => {
+          Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
+            { text: t('cancel'), style: 'cancel' },
             {
-              text: 'Удалить', style: 'destructive', onPress: async () => {
+              text: t('delete'), style: 'destructive', onPress: async () => {
                 await supabase.from('events').delete().eq('id', eventId);
                 haptics.medium();
                 navigation.navigate('Main');
@@ -325,31 +325,32 @@ export default function ChatScreen() {
           ]);
         },
       },
-      { text: 'Отмена', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
     ]);
   }
 
   async function handleAI() {
     if (!isActive) {
-      Alert.alert('', 'Чат закрыт для завершенного или отмененного ивента');
+      Alert.alert('', t('chatEmpty'));
       return;
     }
-    const question = inputText.trim() || `Расскажи об ивенте "${eventTitle}"`;
+    const question = inputText.trim() || `${t('aiDefaultQuestion')} "${eventTitle}"`;
     const moderation = validateChatMessage(question);
     if (!moderation.ok) {
-      Alert.alert('Модерация', moderation.message);
+      Alert.alert(t('moderationPanel'), moderation.message);
       return;
     }
     setInputText('');
     if (inputText.trim()) sendMessage(inputText.trim());
     setIsAITyping(true);
     try {
-      const answer = await askOpenAI(question, eventTitle, eventId);
+      const fallbackResponses = [t('aiFallback1'), t('aiFallback2'), t('aiFallback3')];
+      const answer = await askOpenAI(question, eventTitle, eventId, fallbackResponses);
       if (!answer.saved) {
         await sendMessage(answer.reply, true);
       }
     } catch {
-      await sendMessage('Сервис AI временно недоступен. Попробуй позже.', true);
+      await sendMessage(t('aiUnavailable'), true);
     } finally {
       setIsAITyping(false);
     }
@@ -362,16 +363,16 @@ export default function ChatScreen() {
   function reportMessage(message: Message) {
     if (!user || message.userId === 'ai' || message.userId === user.id) return;
 
-    Alert.alert('Пожаловаться на сообщение?', 'Модераторы увидят текст сообщения и автора.', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('reportTitle'), t('reportText'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Отправить',
+        text: t('send'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase.from('reports').insert({
             reporter_id: user.id,
             reported_user_id: message.userId,
-            reason: 'Жалоба на сообщение',
+            reason: t('reportTitle'),
             details: [
               'type:message',
               `message_id:${message.id}`,
@@ -383,12 +384,12 @@ export default function ChatScreen() {
           });
 
           if (error) {
-            Alert.alert('Ошибка', error.message);
+            Alert.alert(t('error'), error.message);
             return;
           }
 
           haptics.medium();
-          Alert.alert('Готово', 'Жалоба отправлена модераторам.');
+          Alert.alert(t('done'), t('done'));
         },
       },
     ]);
@@ -397,10 +398,10 @@ export default function ChatScreen() {
   function deleteMessage(message: Message) {
     if (!canModerateChat) return;
 
-    Alert.alert('Удалить сообщение?', 'Оно пропадет из чата у всех участников.', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase
@@ -409,7 +410,7 @@ export default function ChatScreen() {
             .eq('id', message.id);
 
           if (error) {
-            Alert.alert('Ошибка', error.message);
+            Alert.alert(t('error'), error.message);
             return;
           }
 
@@ -423,30 +424,44 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {event && (
-        <View style={styles.eventBanner}>
-          <Text style={styles.bannerText}>
-            👥 {event.participantsCount} участников
-            {!!event.hiddenParticipantsCount ? ` · скрыто ${event.hiddenParticipantsCount}` : ''}
+        <View style={[styles.eventBanner, { backgroundColor: theme.accentLight, borderBottomColor: theme.border }]}>
+          <Text style={[styles.bannerText, { color: theme.accent }]}>
+            {event.participantsCount} {t('participants')}
+            {!!event.hiddenParticipantsCount ? ` · ${t('empty')} ${event.hiddenParticipantsCount}` : ''}
             {' · '}{event.datetime}
             {!isActive ? ` · ${eventStatusLabels[eventStatus]}` : ''}
           </Text>
           <View style={styles.bannerActions}>
             <TouchableOpacity
               onPress={() => navigation.navigate('EventParticipants', { eventId, eventTitle })}
-              style={styles.participantsBtn}
+              style={[styles.participantsBtn, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
             >
-              <Text style={styles.participantsBtnText}>👥</Text>
+              <Text style={[styles.participantsBtnText, { color: theme.accent }]}>{t('participants')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('Review', { eventId, eventTitle })}
-              style={[styles.reviewBtn, eventStatus !== 'finished' && styles.reviewBtnDisabled]}
+              style={[
+                styles.reviewBtn,
+                { backgroundColor: theme.accent },
+                eventStatus !== 'finished' && { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.4)' : '#C7D2FE' },
+              ]}
               disabled={eventStatus !== 'finished'}
             >
-              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? '⭐ Оценить' : '⭐ После ивента'}</Text>
+              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? t('reviewSubmitBtn') : t('statusFinished')}</Text>
             </TouchableOpacity>
             {joined && event?.createdBy !== user?.id && (
-              <TouchableOpacity onPress={handleLeave} style={styles.leaveBtn}>
-                <Text style={styles.leaveBtnText}>↩ Выйти</Text>
+              <TouchableOpacity
+                onPress={handleLeave}
+                style={[
+                  styles.leaveBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1',
+                    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FFD0D0',
+                    borderWidth: 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.leaveBtnText, { color: theme.danger }]}>{t('leaveBtn')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -454,7 +469,7 @@ export default function ChatScreen() {
       )}
       {event?.cancelReason ? (
         <View style={styles.cancelNotice}>
-          <Text style={styles.cancelNoticeTitle}>Ивент отменен</Text>
+          <Text style={styles.cancelNoticeTitle}>{t('cancelNotice')}</Text>
           <Text style={styles.cancelNoticeText}>{event.cancelReason}</Text>
         </View>
       ) : null}
@@ -484,24 +499,24 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={[styles.emptyChat, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={styles.emptyChatIcon}>💬</Text>
-              <Text style={[styles.emptyChatText, { color: theme.subtext }]}>Будьте первым! Напишите в чат 👋</Text>
+              <Text style={[styles.emptyChatIcon, { color: theme.subtext }]}>💬</Text>
+              <Text style={[styles.emptyChatText, { color: theme.subtext }]}>{t('chatEmpty')}</Text>
             </View>
           }
         />
 
         {isAITyping && (
           <View style={styles.typingIndicator}>
-            <Text style={styles.typingText}>🤖 Жолдас AI думает...</Text>
+            <Text style={[styles.typingText, { color: theme.accent }]}>{t('aiTyping')}</Text>
           </View>
         )}
 
         <View style={[styles.inputRow, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           <TextInput
-            style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Написать сообщение..."
+            placeholder={t('chatPlaceholder')}
             placeholderTextColor={theme.subtext}
             multiline
             maxLength={500}
@@ -510,23 +525,48 @@ export default function ChatScreen() {
             editable={isActive}
           />
           <TouchableOpacity
-            style={[styles.photoBtn, (!isActive || uploadingPhoto) && styles.actionDisabled]}
+            style={[
+              styles.photoBtn,
+              {
+                backgroundColor: theme.inputBg,
+                borderColor: theme.border,
+              },
+              (!isActive || uploadingPhoto) && styles.actionDisabled,
+            ]}
             onPress={handlePickPhoto}
             disabled={!isActive || uploadingPhoto}
             activeOpacity={0.75}
           >
-            <Text style={styles.photoBtnText}>{uploadingPhoto ? '…' : '📷'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.aiBtn, !isActive && styles.actionDisabled]} onPress={handleAI} disabled={!isActive} activeOpacity={0.75}>
-            <Text style={styles.aiBtnText}>@ai</Text>
+            <Text style={[styles.photoBtnText, { color: theme.subtext }]}>{uploadingPhoto ? '...' : '📷'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sendBtn, (!inputText.trim() || !isActive) && styles.sendBtnDisabled]}
+            style={[
+              styles.aiBtn,
+              {
+                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EFF6FF',
+                borderColor: isDark ? 'rgba(99, 102, 241, 0.4)' : '#C7D2FE',
+              },
+              !isActive && styles.actionDisabled,
+            ]}
+            onPress={handleAI}
+            disabled={!isActive}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.aiBtnText, { color: isDark ? '#A5B4FC' : '#4F46E5' }]}>AI</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.sendBtn,
+              {
+                backgroundColor: theme.accent,
+              },
+              (!inputText.trim() || !isActive) && { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' },
+            ]}
             onPress={handleSend}
             disabled={!inputText.trim() || !isActive}
             activeOpacity={0.8}
           >
-            <Text style={styles.sendBtnText}>↑</Text>
+            <Text style={[styles.sendBtnText, { color: (!inputText.trim() || !isActive) ? theme.subtext : '#FFF' }]}>↑</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -539,26 +579,25 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   eventBanner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#EEF2FF', paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#E4E7EC',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1,
   },
-  bannerText: { fontSize: 12, color: '#4338CA', fontWeight: '700', flex: 1 },
-  bannerActions: { flexDirection: 'row', gap: 6 },
+  bannerText: { fontSize: 13, fontWeight: '700', flex: 1 },
+  bannerActions: { flexDirection: 'row', gap: 8 },
   participantsBtn: {
-    backgroundColor: '#F9FAFB', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12,
   },
-  participantsBtnText: { fontSize: 12, color: '#4338CA', fontWeight: '700' },
+  participantsBtnText: { fontSize: 12, fontWeight: '700' },
   reviewBtn: {
-    backgroundColor: '#4F46E5', borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
-  reviewBtnDisabled: { backgroundColor: '#B8B2E8' },
   reviewBtnText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
   leaveBtn: {
-    backgroundColor: '#FFE8E8', borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
-  leaveBtnText: { fontSize: 12, color: '#FF4D4D', fontWeight: '700' },
+  leaveBtnText: { fontSize: 12, fontWeight: '700' },
   cancelNotice: { backgroundColor: '#FEE4E2', paddingHorizontal: 16, paddingVertical: 10 },
   cancelNoticeTitle: { color: '#B42318', fontSize: 12, fontWeight: '900' },
   cancelNoticeText: { color: '#B42318', fontSize: 12, lineHeight: 17, marginTop: 2 },
@@ -574,10 +613,10 @@ const styles = StyleSheet.create({
   },
   emptyChatIcon: { fontSize: 30, marginBottom: 8 },
   emptyChatText: { fontSize: 14, fontWeight: '700' },
-  typingIndicator: { paddingHorizontal: 16, paddingVertical: 6 },
-  typingText: { fontSize: 12, color: '#E07B2C', fontStyle: 'italic' },
+  typingIndicator: { paddingHorizontal: 16, paddingVertical: 8 },
+  typingText: { fontSize: 12, fontStyle: 'italic', fontWeight: '600' },
   inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end',
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: 1, gap: 8,
     width: '100%', maxWidth: 980, alignSelf: 'center',
@@ -585,27 +624,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 14, elevation: 4,
   },
   input: {
-    flex: 1, borderRadius: 16,
+    flex: 1, borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 10, fontSize: 15,
     maxHeight: 100, borderWidth: 1,
   },
   aiBtn: {
-    backgroundColor: '#FFF3DC', borderRadius: 14,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1.5, borderColor: '#F5A623',
+    width: 42, height: 42, borderRadius: 21,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1,
   },
   actionDisabled: { opacity: 0.5 },
-  aiBtnText: { fontSize: 13, fontWeight: '700', color: '#E07B2C' },
+  aiBtnText: { fontSize: 12, fontWeight: '800' },
   photoBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#C7D2FE',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1,
   },
   photoBtnText: { fontSize: 18 },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  sendBtnDisabled: { backgroundColor: '#C7D2FE' },
   sendBtnText: { fontSize: 18, color: '#FFF', fontWeight: '700' },
 });

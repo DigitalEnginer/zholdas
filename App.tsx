@@ -6,7 +6,9 @@ import { AuthProvider } from './src/context/AuthContext';
 import { EventsProvider } from './src/context/EventsContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { BadgeProvider } from './src/context/BadgeContext';
+import { LanguageProvider } from './src/context/LanguageContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import PwaInstallPrompt from './src/components/PwaInstallPrompt';
 
 function Root() {
   const { isDark } = useTheme();
@@ -14,6 +16,7 @@ function Root() {
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppNavigator />
+      <PwaInstallPrompt />
     </>
   );
 }
@@ -21,13 +24,15 @@ function Root() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <EventsProvider>
-          <BadgeProvider>
-            <Root />
-          </BadgeProvider>
-        </EventsProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <EventsProvider>
+            <BadgeProvider>
+              <Root />
+            </BadgeProvider>
+          </EventsProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

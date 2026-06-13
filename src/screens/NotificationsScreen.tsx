@@ -21,7 +21,7 @@ interface NotificationItem {
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const navigation = useNavigation<Nav>();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,32 +89,47 @@ export default function NotificationsScreen() {
     setItems(prev => prev.map(item => ({ ...item, is_read: true })));
   }
 
+  const shadowColor = isDark ? '#000' : '#0F172A';
+  const shadowOpacity = isDark ? 0.35 : 0.04;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {loading ? (
         <ActivityIndicator color={theme.accent} style={{ flex: 1 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+          <View style={[styles.tabs, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
             {[
-              { key: 'all', label: `Все ${items.length}` },
-              { key: 'unread', label: `Новые ${items.filter(item => !item.is_read).length}` },
+              { key: 'all', label: `Все (${items.length})` },
+              { key: 'unread', label: `Новые (${items.filter(item => !item.is_read).length})` },
             ].map(tab => {
               const selected = activeTab === tab.key;
               return (
                 <TouchableOpacity
                   key={tab.key}
-                  style={[styles.tab, selected && { backgroundColor: theme.accent }]}
+                  style={[
+                    styles.tab,
+                    selected && {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      shadowColor,
+                      shadowOpacity: 0.08,
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowRadius: 4,
+                    }
+                  ]}
                   onPress={() => setActiveTab(tab.key as NotificationTab)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.tabText, { color: selected ? '#FFF' : theme.subtext }]}>{tab.label}</Text>
+                  <Text style={[styles.tabText, { color: selected ? theme.text : theme.subtext, fontWeight: selected ? '800' : '600' }]}>{tab.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
           {items.length > 0 && (
-            <TouchableOpacity style={[styles.readAll, { borderColor: theme.border }]} onPress={markAllRead}>
-              <Text style={[styles.readAllText, { color: theme.subtext }]}>Отметить все прочитанными</Text>
+            <TouchableOpacity style={[styles.readAll, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={markAllRead}>
+              <Text style={[styles.readAllText, { color: theme.accent }]}>Отметить все прочитанными</Text>
             </TouchableOpacity>
           )}
           {(activeTab === 'unread' ? items.filter(item => !item.is_read) : items).length === 0 ? (
@@ -123,13 +138,21 @@ export default function NotificationsScreen() {
             (activeTab === 'unread' ? items.filter(item => !item.is_read) : items).map(item => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.card, { backgroundColor: theme.card, borderColor: item.is_read ? theme.border : theme.accent }]}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    shadowColor,
+                    shadowOpacity,
+                  }
+                ]}
                 onPress={() => handlePress(item)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.dot, { backgroundColor: item.is_read ? theme.border : theme.accent }]} />
+                <View style={[styles.dot, { backgroundColor: item.is_read ? 'transparent' : theme.accent, borderColor: item.is_read ? 'transparent' : theme.accentLight }]} />
                 <View style={styles.body}>
-                  <Text style={[styles.title, { color: theme.text }]}>{item.title}</Text>
+                  <Text style={[styles.title, { color: theme.text, fontWeight: item.is_read ? '600' : '800' }]}>{item.title}</Text>
                   {item.body ? <Text style={[styles.text, { color: theme.subtext }]}>{item.body}</Text> : null}
                 </View>
               </TouchableOpacity>
@@ -144,19 +167,19 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 820, alignSelf: 'center' },
-  tabs: { flexDirection: 'row', gap: 6, borderRadius: 16, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: '#E4E7EC' },
-  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-  tabText: { fontSize: 13, fontWeight: '800' },
-  readAll: { borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center', marginBottom: 12 },
-  readAllText: { fontSize: 13, fontWeight: '800' },
+  tabs: { flexDirection: 'row', gap: 4, borderRadius: 16, padding: 4, marginBottom: 16, borderWidth: 1 },
+  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 12 },
+  readAll: { borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center', marginBottom: 16, shadowColor: '#101828', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
+  readAllText: { fontSize: 13, fontWeight: '700' },
   empty: { marginTop: 40, textAlign: 'center', fontSize: 15 },
   card: {
-    flexDirection: 'row', borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 10,
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04, shadowRadius: 12, elevation: 1,
+    flexDirection: 'row', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 10,
+    shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 2,
+    alignItems: 'center',
   },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12, marginTop: 5 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 12, borderWidth: 1 },
   body: { flex: 1 },
-  title: { fontSize: 15, fontWeight: '800' },
+  title: { fontSize: 14 },
   text: { fontSize: 13, lineHeight: 18, marginTop: 4 },
 });

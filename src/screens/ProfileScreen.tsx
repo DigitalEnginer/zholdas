@@ -9,6 +9,7 @@ import { RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { categoryEmojis } from '../data/mockEvents';
 import AvatarImage from '../components/AvatarImage';
 import { supabase } from '../lib/supabase';
@@ -29,10 +30,26 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <View style={styles.stars}>
       {[1, 2, 3, 4, 5].map(i => (
-        <Text key={i} style={[styles.star, i <= Math.round(rating) && styles.starFilled]}>★</Text>
+        <Text key={i} style={[styles.star, { color: theme.border }, i <= Math.round(rating) && styles.starFilled]}>★</Text>
       ))}
       {rating > 0 && <Text style={[styles.ratingValue, { color: theme.text }]}>{rating.toFixed(1)}</Text>}
     </View>
+  );
+}
+
+function ChevronRight({ color }: { color: string }) {
+  return (
+    <View
+      style={{
+        width: 7,
+        height: 7,
+        borderTopWidth: 1.5,
+        borderRightWidth: 1.5,
+        borderColor: color,
+        transform: [{ rotate: '45deg' }],
+        marginRight: 4,
+      }}
+    />
   );
 }
 
@@ -40,7 +57,8 @@ export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { user, logout } = useAuth();
   const { events, isJoined } = useEvents();
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
+  const { t, toggleLanguage } = useLanguage();
   const scrollRef = React.useRef<ScrollView>(null);
   const eventsSectionY = React.useRef(0);
   const reviewsSectionY = React.useRef(0);
@@ -73,7 +91,7 @@ export default function ProfileScreen() {
     setFriendsCount(friendsData?.length ?? 0);
     setProfileReviews((reviewsData ?? []).map((review: any) => ({
       id: review.id,
-      fromName: review.profiles?.name ?? 'Пользователь',
+      fromName: review.profiles?.name ?? t('userLabel'),
       fromAvatar: review.profiles?.avatar ?? '👤',
       rating: Number(review.rating ?? 0),
       comment: review.comment ?? '',
@@ -82,39 +100,54 @@ export default function ProfileScreen() {
 
   function handleLogout() {
     if (Platform.OS === 'web') {
-      const confirmed = typeof window === 'undefined'
-        ? true
-        : window.confirm('Выйти из профиля?');
+      const confirmed = typeof window === 'undefined' ? true : window.confirm(t('logoutPrompt'));
       if (confirmed) logout();
       return;
     }
 
-    Alert.alert('Выйти?', 'Ваша сессия завершится', [
-      { text: 'Отмена', style: 'cancel' },
-      { text: 'Выйти', style: 'destructive', onPress: logout },
+    Alert.alert(t('logoutPrompt'), t('logoutText'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('logoutBtnText'), style: 'destructive', onPress: logout },
     ]);
   }
 
   if (!user) return null;
 
   const canModerate = user.role === 'moderator' || user.role === 'admin';
+  const cardShadow = {
+    shadowColor: isDark ? '#000' : '#0F172A',
+    shadowOpacity: isDark ? 0.35 : 0.04,
+  };
 
   const stats = [
     {
-      label: 'Ивентов',
+      label: t('eventsLabel'),
       value: String(myEvents.length),
       onPress: () => scrollRef.current?.scrollTo({ y: eventsSectionY.current, animated: true }),
     },
     {
-      label: 'Друзей',
+      label: t('friendsLabel'),
       value: String(friendsCount),
       onPress: () => navigation.navigate('Friends'),
     },
     {
-      label: 'Отзывов',
+      label: t('reviewsLabel'),
       value: String(user.reviewsCount || profileReviews.length),
       onPress: () => scrollRef.current?.scrollTo({ y: reviewsSectionY.current, animated: true }),
     },
+  ];
+
+  const settings = [
+    { color: '#6366F1', label: t('settingEditProfile'), onPress: () => navigation.navigate('EditProfile') },
+    { color: '#F59E0B', label: t('settingNotifications'), onPress: () => navigation.navigate('Notifications') },
+    { color: '#EC4899', label: t('settingFriends'), onPress: () => navigation.navigate('Friends') },
+    { color: '#10B981', label: t('settingCreateEvent'), onPress: () => navigation.navigate('CreateEvent') },
+    ...(isSuperAdmin(user) ? [{ color: '#EF4444', label: t('adminPanel'), onPress: () => navigation.navigate('AdminDashboard') }] : []),
+    ...(canModerate ? [{ color: '#8B5CF6', label: t('moderationPanel'), onPress: () => navigation.navigate('ModeratorDashboard') }] : []),
+    ...(user.role === 'admin' ? [{ color: '#3B82F6', label: t('manageRoles'), onPress: () => navigation.navigate('AdminRoles') }] : []),
+    { color: '#8B5CF6', label: `${t('settingTheme')}${isDark ? t('themeDark') : t('themeLight')}`, onPress: toggleTheme },
+    { color: '#64748B', label: t('settingLanguage'), onPress: toggleLanguage },
+    { color: '#D946EF', label: t('settingAbout'), onPress: () => Alert.alert('Жолдас', t('settingAboutAlert')) },
   ];
 
   return (
@@ -142,24 +175,31 @@ export default function ProfileScreen() {
           {user.bio ? <Text style={[styles.bio, { color: theme.subtext }]}>{user.bio}</Text> : null}
           <StarRating rating={user.rating} />
           {user.reviewsCount > 0 && (
-            <Text style={[styles.reviews, { color: theme.subtext }]}>{user.reviewsCount} отзыв(а)</Text>
+            <Text style={[styles.reviews, { color: theme.subtext }]}>{user.reviewsCount} {t('reviewWord')}</Text>
           )}
-          <Text style={[styles.since, { color: theme.subtext }]}>В Жолдас с {user.joinedAt}</Text>
+          <Text style={[styles.since, { color: theme.subtext }]}>{t('joinedSince')} {user.joinedAt}</Text>
 
           <TouchableOpacity
             style={[styles.editBtn, { borderColor: theme.accent }]}
             onPress={() => navigation.navigate('EditProfile')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.editBtnText, { color: theme.accent }]}>✎ Редактировать профиль</Text>
+            <Text style={[styles.editBtnText, { color: theme.accent }]}>✎ {t('editProfileBtn')}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
-          {stats.map((stat, i) => (
+        <View style={styles.statsRowContainer}>
+          {stats.map((stat) => (
             <TouchableOpacity
               key={stat.label}
-              style={[styles.statItem, i < 2 && { borderRightWidth: 1, borderRightColor: theme.border }]}
+              style={[
+                styles.statTile,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  ...cardShadow,
+                },
+              ]}
               onPress={stat.onPress}
               activeOpacity={0.75}
             >
@@ -170,14 +210,17 @@ export default function ProfileScreen() {
         </View>
 
         <View
-          style={[styles.section, { backgroundColor: theme.card }]}
+          style={[
+            styles.section,
+            { backgroundColor: theme.card, borderColor: theme.border, ...cardShadow },
+          ]}
           onLayout={event => { eventsSectionY.current = event.nativeEvent.layout.y; }}
         >
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Мои ивенты</Text>
+          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('myEventsSection')}</Text>
           {myEvents.length === 0 ? (
             <View style={[styles.emptyEvents, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Text style={styles.emptyEventsIcon}>✨</Text>
-              <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>Ты пока не присоединился ни к одному ивенту</Text>
+              <Text style={[styles.emptyEventsIcon, { color: theme.subtext }]}>✨</Text>
+              <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>{t('emptyEventsMsg')}</Text>
             </View>
           ) : (
             myEvents.map(event => (
@@ -194,8 +237,8 @@ export default function ProfileScreen() {
                   <Text style={[styles.eventTitle, { color: theme.text }]}>{event.title}</Text>
                   <Text style={[styles.eventTime, { color: theme.subtext }]}>{event.datetime}</Text>
                 </View>
-                <View style={[styles.eventBadge, { backgroundColor: theme.accentLight }]}>
-                  <Text style={[styles.eventBadgeText, { color: theme.accent }]}>👥 {event.participantsCount}</Text>
+                <View style={[styles.eventBadge, { backgroundColor: theme.accentLight, borderColor: theme.border, borderWidth: 1 }]}>
+                  <Text style={[styles.eventBadgeText, { color: theme.accent }]}>{event.participantsCount} {t('personCount')}</Text>
                 </View>
               </TouchableOpacity>
             ))
@@ -203,14 +246,17 @@ export default function ProfileScreen() {
         </View>
 
         <View
-          style={[styles.section, { backgroundColor: theme.card }]}
+          style={[
+            styles.section,
+            { backgroundColor: theme.card, borderColor: theme.border, ...cardShadow },
+          ]}
           onLayout={event => { reviewsSectionY.current = event.nativeEvent.layout.y; }}
         >
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Отзывы</Text>
+          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('reviewsSectionTitle')}</Text>
           {profileReviews.length === 0 ? (
             <View style={[styles.emptyEvents, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Text style={styles.emptyEventsIcon}>★</Text>
-              <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>Отзывов пока нет</Text>
+              <Text style={[styles.emptyEventsIcon, { color: theme.subtext }]}>★</Text>
+              <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>{t('reviewsSection')}</Text>
             </View>
           ) : (
             profileReviews.map((review, i) => (
@@ -230,29 +276,29 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View style={[styles.section, { backgroundColor: theme.card }]}>
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Настройки</Text>
-          {[
-            { icon: '✎', label: 'Редактировать профиль', onPress: () => navigation.navigate('EditProfile') },
-            { icon: '🔔', label: 'Уведомления', onPress: () => navigation.navigate('Notifications') },
-            { icon: '👥', label: 'Друзья и заявки', onPress: () => navigation.navigate('Friends') },
-            { icon: '✨', label: 'Создать ивент', onPress: () => navigation.navigate('CreateEvent') },
-            ...(isSuperAdmin(user) ? [{ icon: '🛡', label: 'Админ-панель', onPress: () => navigation.navigate('AdminDashboard') }] : []),
-            ...(canModerate ? [{ icon: '!', label: 'Модерация', onPress: () => navigation.navigate('ModeratorDashboard') }] : []),
-            ...(user.role === 'admin' ? [{ icon: '🔐', label: 'Управление ролями', onPress: () => navigation.navigate('AdminRoles') }] : []),
-            { icon: '🌐', label: 'Язык: Русский', onPress: () => {} },
-            { icon: '💜', label: 'О приложении Жолдас', onPress: () => Alert.alert('Жолдас', 'Версия 1.0\nНайди компанию в Алматы 🇰🇿') },
-          ].map(item => (
+        <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, ...cardShadow }]}>
+          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('settingsSectionTitle')}</Text>
+          {settings.map(item => (
             <TouchableOpacity key={item.label} style={[styles.settingRow, { borderTopColor: theme.border }]} onPress={item.onPress} activeOpacity={0.7}>
-              <Text style={styles.settingIcon}>{item.icon}</Text>
+              <View style={[styles.settingDot, { backgroundColor: item.color }]} />
               <Text style={[styles.settingLabel, { color: theme.text }]}>{item.label}</Text>
-              <Text style={[styles.settingArrow, { color: theme.subtext }]}>›</Text>
+              <ChevronRight color={theme.subtext} />
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Text style={styles.logoutText}>Выйти из профиля</Text>
+        <TouchableOpacity
+          style={[
+            styles.logoutBtn,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FFF1F1',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FFD0D0',
+            },
+          ]}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.logoutText}>{t('logoutBtnText')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -280,7 +326,7 @@ const styles = StyleSheet.create({
   username: { fontSize: 14, marginBottom: 8 },
   bio: { fontSize: 14, textAlign: 'center', marginBottom: 12, lineHeight: 20 },
   stars: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
-  star: { fontSize: 22, color: '#DDD' },
+  star: { fontSize: 22 },
   starFilled: { color: '#F5A623' },
   ratingValue: { fontSize: 16, fontWeight: '700', marginLeft: 6 },
   reviews: { fontSize: 13, marginBottom: 4 },
@@ -290,24 +336,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 8,
   },
   editBtnText: { fontSize: 14, fontWeight: '600' },
-  statsRow: {
-    flexDirection: 'row', marginHorizontal: 16, marginBottom: 16,
-    borderRadius: 16, overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
+  statsRowContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 20,
   },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 18 },
+  statTile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
   statValue: { fontSize: 22, fontWeight: '800' },
   statLabel: { fontSize: 11, marginTop: 2 },
   section: {
     marginHorizontal: 16, marginBottom: 12,
     borderRadius: 16, overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E4E7EC',
-    shadowColor: '#101828', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 13, fontWeight: '700',
@@ -324,7 +378,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
   },
-  emptyEventsIcon: { fontSize: 24, color: '#98A2B3', marginBottom: 8 },
+  emptyEventsIcon: { fontSize: 24, marginBottom: 8 },
   emptyEventsText: { fontSize: 13, textAlign: 'center', fontWeight: '700' },
   eventRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -339,7 +393,7 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
   eventTime: { fontSize: 12 },
   eventBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
-  eventBadgeText: { fontSize: 12, fontWeight: '600' },
+  eventBadgeText: { fontSize: 11, fontWeight: '600' },
   reviewRow: {
     flexDirection: 'row',
     gap: 12,
@@ -357,13 +411,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1,
   },
-  settingIcon: { fontSize: 18, marginRight: 14 },
+  settingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 14,
+  },
   settingLabel: { flex: 1, fontSize: 15 },
-  settingArrow: { fontSize: 20 },
   logoutBtn: {
     marginHorizontal: 16, marginTop: 8, paddingVertical: 14,
-    borderRadius: 14, backgroundColor: '#FFF1F1', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#FFD0D0',
+    borderRadius: 14, alignItems: 'center',
+    borderWidth: 1.5,
   },
   logoutText: { fontSize: 15, fontWeight: '700', color: '#FF4D4D' },
 });
