@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Alert, SafeAreaView,
+  KeyboardAvoidingView, Platform, ScrollView, SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -179,7 +179,7 @@ export default function LoginScreen() {
 
             <TouchableOpacity
               style={styles.forgotBtn}
-              onPress={() => Alert.alert(t('restorePassword'), t('restorePasswordSent'))}
+              onPress={() => navigation.navigate('ForgotPassword')}
               activeOpacity={0.7}
             >
               <Text style={[styles.forgotText, { color: theme.accent }]}>{t('forgotPassword')}</Text>

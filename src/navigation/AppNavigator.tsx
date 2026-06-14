@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { View, Text, StyleSheet, Linking, Platform } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,6 +14,8 @@ import ReviewScreen from '../screens/ReviewScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
@@ -24,6 +26,7 @@ import FriendsScreen from '../screens/FriendsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AdminRolesScreen from '../screens/AdminRolesScreen';
 import EventDetailsScreen from '../screens/EventDetailsScreen';
+import { supabase } from '../lib/supabase';
 
 import { RootStackParamList, BottomTabParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +36,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 const MapIcon = ({ color }: { color: string; focused: boolean }) => (
   <View style={{ width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
@@ -112,18 +116,31 @@ const ProfileIcon = ({ color }: { color: string; focused: boolean }) => (
   </View>
 );
 
+function getRecoveryParams(url: string) {
+  const hash = url.includes('#') ? url.split('#')[1] : '';
+  const query = url.includes('?') ? url.split('?')[1]?.split('#')[0] : '';
+  const params = new URLSearchParams(hash || query || '');
+
+  return {
+    accessToken: params.get('access_token'),
+    refreshToken: params.get('refresh_token'),
+    type: params.get('type'),
+    error: params.get('error'),
+  };
+}
+
 function TabIcon({ name, focused, theme, badge }: { name: string; focused: boolean; theme: any; badge?: number }) {
-  const color = focused ? theme.accent : theme.subtext;
+  const color = focused ? '#7167FF' : '#8E99AE';
   return (
     <View style={styles.tabIconWrapper}>
-      {focused && <View style={[styles.activeIndicator, { backgroundColor: theme.accent }]} />}
-      <View style={[styles.tabIcon, focused && { backgroundColor: theme.accentLight }]}>
+      {focused && <View style={styles.activeIndicator} />}
+      <View style={[styles.tabIcon, focused && styles.tabIconFocused]}>
         {name === 'Map' && <MapIcon color={color} focused={focused} />}
         {name === 'List' && <ListIcon color={color} focused={focused} />}
         {name === 'Activity' && <ActivityIcon color={color} focused={focused} />}
         {name === 'Profile' && <ProfileIcon color={color} focused={focused} />}
         {badge != null && badge > 0 && (
-          <View style={[styles.badgeDot, { backgroundColor: theme.danger }]}>
+          <View style={[styles.badgeDot, { backgroundColor: theme.danger, borderColor: '#0D1426' }]}>
             <Text style={styles.badgeDotText}>{badge > 9 ? '9+' : badge}</Text>
           </View>
         )}
@@ -142,9 +159,15 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.subtext,
-        tabBarStyle: [styles.tabBar, { backgroundColor: theme.tabBar, borderTopColor: theme.border }],
+        tabBarActiveTintColor: '#7167FF',
+        tabBarInactiveTintColor: '#8E99AE',
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            backgroundColor: '#0D1426',
+            borderTopColor: 'rgba(255,255,255,0.08)',
+          },
+        ],
         tabBarIcon: ({ focused }) => (
           <TabIcon
             name={route.name}
@@ -197,6 +220,43 @@ export default function AppNavigator() {
     AsyncStorage.getItem('onboarding_done').then(v => setShowOnboarding(!v));
   }, []);
 
+  React.useEffect(() => {
+    async function handleRecoveryUrl(url?: string | null) {
+      if (!url) return;
+
+      const { accessToken, refreshToken, type, error } = getRecoveryParams(url);
+      if (error || type !== 'recovery' || !accessToken || !refreshToken) return;
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError) return;
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+
+      setTimeout(() => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('ResetPassword');
+        }
+      }, 0);
+    }
+
+    Linking.getInitialURL().then(handleRecoveryUrl);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      handleRecoveryUrl(window.location.href);
+    }
+
+    const subscription = Linking.addEventListener('url', event => {
+      handleRecoveryUrl(event.url);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   if (isLoading || showOnboarding === null) return null;
 
   const navTheme = isDark
@@ -204,7 +264,7 @@ export default function AppNavigator() {
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: theme.bg, card: theme.card } };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator screenOptions={{
         headerStyle: { backgroundColor: theme.card },
         headerTintColor: theme.accent,
@@ -226,12 +286,18 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Auth" component={LoginScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Register" component={RegisterScreen as any} options={{ title: t('registerButton'), headerBackTitle: t('back') }} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: t('restorePassword'), headerBackTitle: t('back') }} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: t('newPasswordTitle'), headerBackTitle: t('back') }} />
           </>
         ) : user.isBanned ? (
-          <Stack.Screen name="Main" component={BannedAccountScreen} options={{ headerShown: false }} />
+          <>
+            <Stack.Screen name="Main" component={BannedAccountScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: t('newPasswordTitle'), headerBackTitle: t('back') }} />
+          </>
         ) : (
           <>
             <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: t('newPasswordTitle'), headerBackTitle: t('back') }} />
             <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: t('detailsTitle'), headerBackTitle: t('back') }} />
             <Stack.Screen name="Chat" component={ChatScreen} options={{ headerBackTitle: t('back') }} />
             <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: t('newEventTitle'), headerBackTitle: t('back') }} />
@@ -254,22 +320,21 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 10,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderTopWidth: 1,
-    borderRadius: 24,
-    elevation: 10,
-    shadowColor: '#101828',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.10,
-    shadowRadius: 20,
-    height: 70,
-    paddingBottom: 9,
-    paddingTop: 8,
+    elevation: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    height: 84,
+    paddingBottom: 18,
+    paddingTop: 9,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     marginTop: 2,
   },
@@ -283,23 +348,27 @@ const styles = StyleSheet.create({
   activeIndicator: {
     position: 'absolute',
     top: -8,
-    width: 20,
-    height: 3,
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
+    width: 38,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#7167FF',
   },
   tabIcon: {
-    width: 40,
-    height: 32,
-    borderRadius: 13,
+    width: 48,
+    height: 38,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  tabIconFocused: {
+    backgroundColor: 'rgba(113, 103, 255, 0.18)',
   },
   badgeDot: {
     position: 'absolute',
     top: -2,
     right: -4,
     borderRadius: 8,
+    borderWidth: 2,
     minWidth: 15,
     height: 15,
     justifyContent: 'center',

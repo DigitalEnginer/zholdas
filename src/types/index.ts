@@ -89,6 +89,8 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Auth: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: undefined;
   Main: undefined;
   Chat: { eventId: string; eventTitle: string };
   CreateEvent: { eventId?: string } | undefined;

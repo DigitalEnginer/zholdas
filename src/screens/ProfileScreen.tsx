@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, SafeAreaView, Alert, Platform,
+  TouchableOpacity, SafeAreaView, Alert, Platform, Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -57,13 +57,14 @@ export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { user, logout } = useAuth();
   const { events, isJoined } = useEvents();
-  const { theme, isDark, toggleTheme } = useTheme();
-  const { t, toggleLanguage } = useLanguage();
+  const { theme, isDark, themeMode, setThemeMode } = useTheme();
+  const { t, locale, setLocale } = useLanguage();
   const scrollRef = React.useRef<ScrollView>(null);
   const eventsSectionY = React.useRef(0);
   const reviewsSectionY = React.useRef(0);
   const [friendsCount, setFriendsCount] = React.useState(0);
   const [profileReviews, setProfileReviews] = React.useState<ProfileReview[]>([]);
+  const [settingsPicker, setSettingsPicker] = React.useState<'theme' | 'language' | null>(null);
 
   const myEvents = user ? events.filter(e => isJoined(e.id, user.id)) : [];
 
@@ -137,6 +138,25 @@ export default function ProfileScreen() {
     },
   ];
 
+  const themeTitle = themeMode === 'system'
+    ? t('themeSystem')
+    : themeMode === 'dark'
+      ? t('themeDark')
+      : t('themeLight');
+  const languageTitle = locale === 'kk' ? t('languageKazakh') : t('languageRussian');
+
+  const pickerTitle = settingsPicker === 'theme' ? t('chooseTheme') : t('chooseLanguage');
+  const pickerOptions = settingsPicker === 'theme'
+    ? [
+      { key: 'system', label: t('themeSystem'), onPress: () => setThemeMode('system'), active: themeMode === 'system' },
+      { key: 'light', label: t('themeLight'), onPress: () => setThemeMode('light'), active: themeMode === 'light' },
+      { key: 'dark', label: t('themeDark'), onPress: () => setThemeMode('dark'), active: themeMode === 'dark' },
+    ]
+    : [
+      { key: 'ru', label: t('languageRussian'), onPress: () => setLocale('ru'), active: locale === 'ru' },
+      { key: 'kk', label: t('languageKazakh'), onPress: () => setLocale('kk'), active: locale === 'kk' },
+    ];
+
   const settings = [
     { color: '#6366F1', label: t('settingEditProfile'), onPress: () => navigation.navigate('EditProfile') },
     { color: '#F59E0B', label: t('settingNotifications'), onPress: () => navigation.navigate('Notifications') },
@@ -145,8 +165,8 @@ export default function ProfileScreen() {
     ...(isSuperAdmin(user) ? [{ color: '#EF4444', label: t('adminPanel'), onPress: () => navigation.navigate('AdminDashboard') }] : []),
     ...(canModerate ? [{ color: '#8B5CF6', label: t('moderationPanel'), onPress: () => navigation.navigate('ModeratorDashboard') }] : []),
     ...(user.role === 'admin' ? [{ color: '#3B82F6', label: t('manageRoles'), onPress: () => navigation.navigate('AdminRoles') }] : []),
-    { color: '#8B5CF6', label: `${t('settingTheme')}${isDark ? t('themeDark') : t('themeLight')}`, onPress: toggleTheme },
-    { color: '#64748B', label: t('settingLanguage'), onPress: toggleLanguage },
+    { color: '#8B5CF6', label: `${t('settingTheme')}${themeTitle}`, onPress: () => setSettingsPicker('theme') },
+    { color: '#64748B', label: `${t('settingLanguageTitle')}: ${languageTitle}`, onPress: () => setSettingsPicker('language') },
     { color: '#D946EF', label: t('settingAbout'), onPress: () => Alert.alert('Жолдас', t('settingAboutAlert')) },
   ];
 
@@ -303,6 +323,60 @@ export default function ProfileScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal
+        visible={settingsPicker !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSettingsPicker(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setSettingsPicker(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.pickerSheet, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: theme.text }]}>{pickerTitle}</Text>
+              <TouchableOpacity
+                style={[styles.pickerClose, { backgroundColor: theme.inputBg }]}
+                onPress={() => setSettingsPicker(null)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.pickerCloseText, { color: theme.text }]}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            {pickerOptions.map(option => (
+              <TouchableOpacity
+                key={option.key}
+                style={[styles.pickerOption, { borderTopColor: theme.border }]}
+                onPress={() => {
+                  option.onPress();
+                  setSettingsPicker(null);
+                }}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.pickerOptionText, { color: theme.text }]}>{option.label}</Text>
+                <View
+                  style={[
+                    styles.pickerCheck,
+                    {
+                      borderColor: option.active ? theme.accent : theme.border,
+                      backgroundColor: option.active ? theme.accent : 'transparent',
+                    },
+                  ]}
+                >
+                  {option.active ? <Text style={styles.pickerCheckText}>✓</Text> : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -418,6 +492,72 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   settingLabel: { flex: 1, fontSize: 15 },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  pickerSheet: {
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  pickerHeader: {
+    minHeight: 64,
+    paddingLeft: 20,
+    paddingRight: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  pickerClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerCloseText: {
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '600',
+  },
+  pickerOption: {
+    minHeight: 58,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+  },
+  pickerOptionText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerCheckText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
   logoutBtn: {
     marginHorizontal: 16, marginTop: 8, paddingVertical: 14,
     borderRadius: 14, alignItems: 'center',
