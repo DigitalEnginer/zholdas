@@ -289,7 +289,7 @@ export default function RegisterScreen() {
               label={t('birthYear')}
               value={birthYear}
               onChange={setBirthYear}
-              placeholder="Напр. 1995"
+              placeholder={t('birthYearExample')}
               errorKey="birthYear"
               keyboard="number-pad"
               errors={errors}

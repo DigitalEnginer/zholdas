@@ -6,11 +6,12 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT, Region } from 'react-nativ
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
+import { categoryEmojis, eventStatusColors } from '../data/mockEvents';
 import EventMarker from '../components/EventMarker';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance } from '../hooks/useLocation';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -22,19 +23,20 @@ const ALMATY_REGION = {
 const MIN_DELTA = 0.01;
 const MAX_DELTA = 0.7;
 
-const MAP_FILTERS: Array<{ key: 'all' | EventCategory; label: string; emoji: string }> = [
-  { key: 'all', label: 'Все', emoji: '🌟' },
-  { key: 'mountains', label: 'Горы', emoji: '⛰️' },
-  { key: 'theatre', label: 'Театр', emoji: '🎭' },
-  { key: 'restaurant', label: 'Ресторан', emoji: '🍽️' },
-  { key: 'sport', label: 'Спорт', emoji: '⚽' },
-  { key: 'other', label: 'Другое', emoji: '✨' },
+const MAP_FILTERS: Array<{ key: 'all' | EventCategory; labelKey: string; emoji: string }> = [
+  { key: 'all', labelKey: 'filterAll', emoji: '🌟' },
+  { key: 'mountains', labelKey: 'filterMountains', emoji: '⛰️' },
+  { key: 'theatre', labelKey: 'filterTheatre', emoji: '🎭' },
+  { key: 'restaurant', labelKey: 'filterRestaurant', emoji: '🍽️' },
+  { key: 'sport', labelKey: 'filterSport', emoji: '⚽' },
+  { key: 'other', labelKey: 'filterOther', emoji: '✨' },
 ];
 
 export default function MapScreen() {
   const navigation = useNavigation<Nav>();
   const { events, joinEvent, leaveEvent, isJoined } = useEvents();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const userLocation = useLocation();
   const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -61,30 +63,30 @@ export default function MapScreen() {
   function handleJoin() {
     if (!selectedEvent || !user) return;
     if (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active') {
-      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      Alert.alert('', t('joinErrorClosed'));
       return;
     }
     if (isJoined(selectedEvent.id, user.id)) leaveEvent(selectedEvent.id, user.id);
-    else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert('Ошибка', e.message));
+    else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert(t('error'), e.message));
   }
 
   function formatRouteDistance(meters: number) {
-    if (meters < 1000) return `${Math.round(meters)} м`;
-    return `${(meters / 1000).toFixed(1)} км`;
+    if (meters < 1000) return `${Math.round(meters)} ${t('metersUnit')}`;
+    return `${(meters / 1000).toFixed(1)} ${t('kmUnit')}`;
   }
 
   function formatRouteDuration(seconds: number) {
     const minutes = Math.max(1, Math.round(seconds / 60));
-    if (minutes < 60) return `${minutes} мин`;
+    if (minutes < 60) return `${minutes} ${t('minUnit')}`;
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    return rest ? `${hours} ч ${rest} мин` : `${hours} ч`;
+    return rest ? `${hours} ${t('hourUnit')} ${rest} ${t('minUnit')}` : `${hours} ${t('hourUnit')}`;
   }
 
   async function showRoute() {
     if (!selectedEvent) return;
     if (!userLocation) {
-      Alert.alert('', 'Разреши геолокацию, чтобы построить маршрут');
+      Alert.alert('', t('allowLocationForRoute'));
       return;
     }
 
@@ -128,7 +130,7 @@ export default function MapScreen() {
       setRouteCoordinates(fallbackCoordinates);
       setRouteInfo({
         distance: getDistance(userLocation, selectedEvent.coordinate),
-        duration: 'примерно',
+        duration: t('approximately'),
       });
       mapRef.current?.fitToCoordinates(fallbackCoordinates, {
         edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
@@ -184,7 +186,7 @@ export default function MapScreen() {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>🗺 Жолдас</Text>
-        <Text style={styles.headerSubtitle}>{filteredEvents.length} ивента в Алматы</Text>
+        <Text style={styles.headerSubtitle}>{filteredEvents.length} {t('mapEventsInAlmaty')}</Text>
       </View>
 
       <View style={styles.filterBar}>
@@ -197,7 +199,7 @@ export default function MapScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.filterEmoji}>{f.emoji}</Text>
-              <Text style={[styles.filterLabel, mapFilter === f.key && styles.filterLabelActive]}>{f.label}</Text>
+              <Text style={[styles.filterLabel, mapFilter === f.key && styles.filterLabelActive]}>{t(f.labelKey)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -216,12 +218,12 @@ export default function MapScreen() {
       {routeTarget && (
         <View style={styles.routeBanner}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.routeBannerTitle}>Маршрут показан</Text>
+            <Text style={styles.routeBannerTitle}>{t('routeShown')}</Text>
             <Text style={styles.routeBannerText} numberOfLines={1}>
               {routeInfo
-                ? `${routeInfo.distance} · ${routeInfo.duration} до "${routeTarget.title}"`
+                ? `${routeInfo.distance} · ${routeInfo.duration} ${t('routeTo')} "${routeTarget.title}"`
                 : userLocation
-                  ? `${getDistance(userLocation, routeTarget.coordinate)} до "${routeTarget.title}"`
+                  ? `${getDistance(userLocation, routeTarget.coordinate)} ${t('routeTo')} "${routeTarget.title}"`
                   : routeTarget.title}
             </Text>
           </View>
@@ -243,7 +245,7 @@ export default function MapScreen() {
         onPress={() => navigation.navigate('CreateEvent')}
         activeOpacity={0.85}
       >
-        <Text style={styles.createFabText}>+ Создать</Text>
+        <Text style={styles.createFabText}>+ {t('createEventBtn')}</Text>
       </TouchableOpacity>
 
       {selectedEvent && (
@@ -256,7 +258,7 @@ export default function MapScreen() {
           <View style={styles.sheetHeader}>
             <View style={styles.categoryBadge}>
               <Text>{categoryEmojis[selectedEvent.category]}</Text>
-              <Text style={styles.categoryText}>{categoryLabels[selectedEvent.category]}</Text>
+              <Text style={styles.categoryText}>{t(`filter${selectedEvent.category === 'mountains' ? 'Mountains' : selectedEvent.category === 'theatre' ? 'Theatre' : selectedEvent.category === 'restaurant' ? 'Restaurant' : selectedEvent.category === 'sport' ? 'Sport' : 'Other'}`)}</Text>
             </View>
             <TouchableOpacity onPress={closeSheet} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -273,7 +275,7 @@ export default function MapScreen() {
                 styles.statusText,
                 { color: eventStatusColors[selectedEvent.status ?? 'active'] },
               ]}>
-                {eventStatusLabels[selectedEvent.status ?? 'active']}
+                {t((selectedEvent.status ?? 'active') === 'active' ? 'statusActive' : (selectedEvent.status ?? 'active') === 'finished' ? 'statusFinished' : 'statusCancelled')}
               </Text>
             </View>
           )}
@@ -289,8 +291,8 @@ export default function MapScreen() {
 
           <View style={styles.sheetParticipants}>
             <Text style={styles.participantsLabel}>
-              👥 {selectedEvent.participantsCount} из {selectedEvent.maxParticipants} участников
-              {!!selectedEvent.hiddenParticipantsCount ? ` · скрыто ${selectedEvent.hiddenParticipantsCount}` : ''}
+              👥 {selectedEvent.participantsCount}/{selectedEvent.maxParticipants} {t('participants').toLowerCase()}
+              {!!selectedEvent.hiddenParticipantsCount ? ` · ${t('hiddenCount')} ${selectedEvent.hiddenParticipantsCount}` : ''}
             </Text>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, {
@@ -307,25 +309,33 @@ export default function MapScreen() {
                 navigation.navigate('EventDetails', { eventId: selectedEvent.id });
               }}
             >
-              <Text style={styles.detailsBtnText}>Подробнее</Text>
+              <Text style={styles.detailsBtnText}>{t('detailsBtn')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.routeBtn}
               onPress={showRoute}
             >
-              <Text style={styles.routeBtnText}>Маршрут</Text>
+              <Text style={styles.routeBtnText}>{t('routeBtn')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.joinBtn, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnActive]}
-              onPress={handleJoin}
+              onPress={() => {
+                if (user && isJoined(selectedEvent.id, user.id)) {
+                  // Already joined → open chat instead of leaving
+                  closeSheet();
+                  navigation.navigate('Chat', { eventId: selectedEvent.id, eventTitle: selectedEvent.title });
+                } else {
+                  handleJoin();
+                }
+              }}
               disabled={!user || (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active')}
             >
               <Text style={[styles.joinBtnText, user && isJoined(selectedEvent.id, user.id) && styles.joinBtnTextActive]}>
                 {user && isJoined(selectedEvent.id, user.id)
-                  ? '✓ Вы в группе'
+                  ? '💬 ' + t('chatShort')
                   : (selectedEvent.status ?? 'active') !== 'active'
-                    ? eventStatusLabels[selectedEvent.status ?? 'active']
-                    : 'Присоединиться'}
+                    ? t((selectedEvent.status ?? 'active') === 'finished' ? 'statusFinished' : 'statusCancelled')
+                    : t('joinBtn')}
               </Text>
             </TouchableOpacity>
             {user && isJoined(selectedEvent.id, user.id) && (
@@ -333,10 +343,10 @@ export default function MapScreen() {
                 style={styles.chatBtn}
                 onPress={() => {
                   closeSheet();
-                  navigation.navigate('Chat', { eventId: selectedEvent.id, eventTitle: selectedEvent.title });
+                  navigation.navigate('EventDetails', { eventId: selectedEvent.id });
                 }}
               >
-                <Text style={styles.chatBtnText}>💬 Чат</Text>
+                <Text style={styles.chatBtnText}>{t('detailsBtn')}</Text>
               </TouchableOpacity>
             )}
           </View>

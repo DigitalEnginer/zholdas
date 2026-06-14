@@ -9,10 +9,11 @@ import { EventStatus, RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
-import { categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
+import { eventStatusColors } from '../data/mockEvents';
 import { getDistance, openRoute, useLocation } from '../hooks/useLocation';
 import AvatarImage from '../components/AvatarImage';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 
 type EventDetailsRoute = RouteProp<RootStackParamList, 'EventDetails'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -23,6 +24,7 @@ export default function EventDetailsScreen() {
   const { eventId } = route.params;
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const { events, joinEvent, leaveEvent, isJoined, updateEventStatus } = useEvents();
   const userLocation = useLocation();
   const event = events.find(e => e.id === eventId);
@@ -38,18 +40,18 @@ export default function EventDetailsScreen() {
         .then(({ data }) => {
           if (data) {
             setCreatorProfile({
-              name: data.name ?? 'Организатор',
+              name: data.name ?? t('organizer'),
               avatar: data.avatar ?? '👤',
             });
           }
         });
     }
-  }, [event?.createdBy]);
+  }, [event?.createdBy, t]);
 
   if (!event) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <Text style={[styles.empty, { color: theme.subtext }]}>Ивент не найден</Text>
+        <Text style={[styles.empty, { color: theme.subtext }]}>{t('eventNotFound')}</Text>
       </SafeAreaView>
     );
   }
@@ -59,11 +61,12 @@ export default function EventDetailsScreen() {
   const joined = !!user && isJoined(event.id, user.id);
   const canManage = !!user && (currentEvent.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const isActive = status === 'active';
+  const statusText = t(status === 'finished' ? 'statusFinished' : status === 'cancelled' ? 'statusCancelled' : 'statusActive');
 
   async function handleJoin() {
     if (!user) return;
     if (!joined && !isActive) {
-      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      Alert.alert('', t('joinErrorClosed'));
       return;
     }
 
@@ -71,7 +74,7 @@ export default function EventDetailsScreen() {
       if (joined) await leaveEvent(currentEvent.id, user.id);
       else await joinEvent(currentEvent.id, user.id);
     } catch (e: any) {
-      Alert.alert('Ошибка', e.message ?? 'Не удалось выполнить действие');
+      Alert.alert(t('error'), e.message ?? t('error'));
     }
   }
 
@@ -79,26 +82,26 @@ export default function EventDetailsScreen() {
     try {
       await updateEventStatus(currentEvent.id, nextStatus, reason);
     } catch (e: any) {
-      Alert.alert('Ошибка', e.message ?? 'Не удалось изменить статус');
+      Alert.alert(t('error'), e.message ?? t('error'));
     }
   }
 
   function cancelEvent() {
     if (Platform.OS === 'ios') {
-      Alert.prompt('Причина отмены', 'Участники увидят эту причину', [
-        { text: 'Назад', style: 'cancel' },
-        { text: 'Отменить ивент', style: 'destructive', onPress: (reason?: string) => setStatus('cancelled', reason || 'Ивент отменен') },
+      Alert.prompt(t('cancelReason'), t('cancelEventAction'), [
+        { text: t('back'), style: 'cancel' },
+        { text: t('cancelEventAction'), style: 'destructive', onPress: (reason?: string) => setStatus('cancelled', reason || t('cancelNotice')) },
       ]);
       return;
     }
 
-    setStatus('cancelled', 'Ивент отменен');
+    setStatus('cancelled', t('cancelNotice'));
   }
 
   async function shareEvent() {
     await Share.share({
       title: currentEvent.title,
-      message: `Присоединяйся к ивенту "${currentEvent.title}" в Жолдас`,
+      message: `${t('eventShareMessage')} "${currentEvent.title}" в Жолдас`,
     });
   }
 
@@ -112,12 +115,12 @@ export default function EventDetailsScreen() {
           {event.imageUri ? <Image source={{ uri: event.imageUri }} style={styles.heroImage} /> : null}
           <View style={styles.topRow}>
             <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
-              <Text style={[styles.categoryText, { color: theme.accent }]}>{categoryLabels[event.category]}</Text>
+              <Text style={[styles.categoryText, { color: theme.accent }]}>{t(`filter${event.category === 'mountains' ? 'Mountains' : event.category === 'theatre' ? 'Theatre' : event.category === 'restaurant' ? 'Restaurant' : event.category === 'sport' ? 'Sport' : 'Other'}`)}</Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: `${eventStatusColors[status]}12` }]}>
               <View style={[styles.statusDot, { backgroundColor: eventStatusColors[status] }]} />
               <Text style={[styles.statusText, { color: eventStatusColors[status] }]}>
-                {eventStatusLabels[status]}
+                {statusText}
               </Text>
             </View>
           </View>
@@ -138,7 +141,7 @@ export default function EventDetailsScreen() {
             >
               <AvatarImage value={creatorProfile.avatar} size={42} backgroundColor={theme.accentLight} textSize={22} />
               <View style={styles.detailCardText}>
-                <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>Организатор</Text>
+                <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>{t('organizer')}</Text>
                 <Text style={[styles.detailCardVal, { color: theme.text }]}>{creatorProfile.name}</Text>
               </View>
             </TouchableOpacity>
@@ -149,7 +152,7 @@ export default function EventDetailsScreen() {
               <Text style={[styles.iconEmoji, { color: theme.accent }]}>📅</Text>
             </View>
             <View style={styles.detailCardText}>
-              <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>Дата и Время</Text>
+              <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>{t('dateTimeLabel')}</Text>
               <Text style={[styles.detailCardVal, { color: theme.text }]}>{event.datetime}</Text>
             </View>
           </View>
@@ -159,14 +162,14 @@ export default function EventDetailsScreen() {
               <Text style={[styles.iconEmoji, { color: theme.accent }]}>📍</Text>
             </View>
             <View style={styles.detailCardText}>
-              <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>Место проведения</Text>
+              <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>{t('venueLabel')}</Text>
               <Text style={[styles.detailCardVal, { color: theme.text }]}>{event.address || 'Алматы'}</Text>
               {userLocation ? (
                 <Text style={[styles.detailCardDistance, { color: theme.accent }]}>
-                  Расстояние: {getDistance(userLocation, event.coordinate)}
+                  {t('distanceLabel')}: {getDistance(userLocation, event.coordinate)}
                 </Text>
               ) : (
-                <Text style={[styles.detailCardDistance, { color: theme.subtext }]}>Включите геолокацию</Text>
+                <Text style={[styles.detailCardDistance, { color: theme.subtext }]}>{t('enableLocation')}</Text>
               )}
             </View>
           </View>
@@ -175,38 +178,38 @@ export default function EventDetailsScreen() {
         {(event.genderFilter !== 'all' || event.minAge || event.maxAge) && (
           <View style={[styles.restrictionBox, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
             <Text style={[styles.restrictionText, { color: theme.text }]}>
-              ⚠️ <Text style={{ fontWeight: '800' }}>Ограничения:</Text>{' '}
-              {event.genderFilter === 'male' ? 'Только мужчины' : event.genderFilter === 'female' ? 'Только женщины' : 'Все'}
-              {(event.minAge || event.maxAge) ? ` · Возраст ${event.minAge ?? '—'} – ${event.maxAge ?? '—'} лет` : ''}
+              ⚠️ <Text style={{ fontWeight: '800' }}>{t('restrictionsLabel')}</Text>{' '}
+              {event.genderFilter === 'male' ? t('genderFilterMale') : event.genderFilter === 'female' ? t('genderFilterFemale') : t('genderFilterAll')}
+              {(event.minAge || event.maxAge) ? ` · ${t('ageLabel')} ${event.minAge ?? '—'} – ${event.maxAge ?? '—'} ${t('ageUnit')}` : ''}
             </Text>
           </View>
         )}
 
         {event.cancelReason ? (
           <View style={[styles.cancelBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEE4E2', borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FDA29B' }]}>
-            <Text style={[styles.cancelTitle, { color: theme.danger }]}>Причина отмены</Text>
+            <Text style={[styles.cancelTitle, { color: theme.danger }]}>{t('cancelReason')}</Text>
             <Text style={[styles.cancelText, { color: theme.danger }]}>{event.cancelReason}</Text>
           </View>
         ) : null}
 
         <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Описание</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('descLabel')}</Text>
           <Text style={[styles.description, { color: theme.subtext }]}>{event.description}</Text>
         </View>
 
         <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
           <View style={styles.participantsHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Участники</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('participants')}</Text>
             <Text style={[styles.participantsCount, { color: theme.accent }]}>
               {event.participantsCount}/{event.maxParticipants}
-              {!!event.hiddenParticipantsCount ? ` (+${event.hiddenParticipantsCount} скрыто)` : ''}
+              {!!event.hiddenParticipantsCount ? ` (+${event.hiddenParticipantsCount} ${t('hiddenCount')})` : ''}
             </Text>
           </View>
           <TouchableOpacity
             style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
             onPress={() => navigation.navigate('EventParticipants', { eventId: event.id, eventTitle: event.title })}
           >
-            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Посмотреть участников</Text>
+            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>{t('viewParticipants')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -222,64 +225,70 @@ export default function EventDetailsScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>
-              {joined ? 'Выйти из ивента' : isActive ? 'Присоединиться' : eventStatusLabels[status]}
+              {joined ? t('leaveEventBtn') : isActive ? t('joinBtn') : statusText}
             </Text>
           </TouchableOpacity>
 
-          {joined && (
+          {(joined || canManage) && (
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: theme.success }]}
               onPress={() => navigation.navigate('Chat', { eventId: event.id, eventTitle: event.title })}
               activeOpacity={0.8}
             >
-              <Text style={styles.primaryButtonText}>Открыть чат</Text>
+              <Text style={styles.primaryButtonText}>{t('openChatAction')}</Text>
             </TouchableOpacity>
           )}
 
-          {status === 'finished' && joined && (
+          {joined && (
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.warning }]}
+              style={[
+                styles.primaryButton,
+                { backgroundColor: status === 'finished' ? theme.warning : theme.border },
+              ]}
               onPress={() => navigation.navigate('Review', { eventId: event.id, eventTitle: event.title })}
+              disabled={status !== 'finished'}
               activeOpacity={0.8}
             >
-              <Text style={styles.primaryButtonText}>Оценить участников</Text>
+              <Text style={styles.primaryButtonText}>
+                {status === 'finished' ? t('reviewParticipants') : t('reviewAvailableAfterFinish')}
+              </Text>
             </TouchableOpacity>
           )}
 
           <View style={styles.actionRow}>
             <TouchableOpacity style={[styles.actionRowBtn, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={shareEvent}>
-              <Text style={[styles.actionRowBtnText, { color: theme.text }]}>Поделиться</Text>
+              <Text style={[styles.actionRowBtnText, { color: theme.text }]}>{t('shareBtn')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.actionRowBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
               onPress={() => openRoute(event.coordinate, event.title)}
             >
-              <Text style={[styles.actionRowBtnText, { color: theme.text }]}>Построить маршрут</Text>
+              <Text style={[styles.actionRowBtnText, { color: theme.text }]}>{t('buildRoute')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {canManage && (
           <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>Панель управления</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>{t('managePanel')}</Text>
             <View style={styles.manageGrid}>
               <TouchableOpacity style={[styles.manageBtn, { backgroundColor: theme.inputBg }]} onPress={() => navigation.navigate('CreateEvent', { eventId: event.id })}>
-                <Text style={[styles.manageBtnText, { color: theme.text }]}>Редактировать</Text>
+                <Text style={[styles.manageBtnText, { color: theme.text }]}>{t('editAction')}</Text>
               </TouchableOpacity>
               {status !== 'finished' && (
                 <TouchableOpacity style={[styles.manageBtn, { backgroundColor: theme.inputBg }]} onPress={() => setStatus('finished')}>
-                  <Text style={[styles.manageBtnText, { color: theme.success }]}>Завершить</Text>
+                  <Text style={[styles.manageBtnText, { color: theme.success }]}>{t('finishAction')}</Text>
                 </TouchableOpacity>
               )}
               {status !== 'cancelled' && (
                 <TouchableOpacity style={[styles.manageBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE4E2' }]} onPress={cancelEvent}>
-                  <Text style={[styles.manageBtnText, { color: theme.danger }]}>Отменить</Text>
+                  <Text style={[styles.manageBtnText, { color: theme.danger }]}>{t('cancel')}</Text>
                 </TouchableOpacity>
               )}
               {status !== 'active' && (
                 <TouchableOpacity style={[styles.manageBtn, { backgroundColor: theme.inputBg }]} onPress={() => setStatus('active')}>
-                  <Text style={[styles.manageBtnText, { color: theme.accent }]}>Вернуть в активные</Text>
+                  <Text style={[styles.manageBtnText, { color: theme.accent }]}>{t('restoreActiveAction')}</Text>
                 </TouchableOpacity>
               )}
             </View>

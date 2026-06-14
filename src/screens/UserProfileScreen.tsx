@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import { useLanguage } from '../context/LanguageContext';
 
 type ProfileRoute = RouteProp<RootStackParamList, 'UserProfile'>;
 
@@ -48,14 +49,12 @@ export default function UserProfileScreen() {
   const { userId, userName, userAvatar } = route.params;
   const { theme, isDark } = useTheme();
   const { user: currentUser } = useAuth();
+  const { t } = useLanguage();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [followLoading, setFollowLoading] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
   const [banLoading, setBanLoading] = useState(false);
   const [friendStatus, setFriendStatus] = useState<'none' | 'outgoing' | 'incoming' | 'accepted'>('none');
@@ -73,8 +72,6 @@ export default function UserProfileScreen() {
       { data: profileData },
       { data: eventsData },
       { data: reviewsData },
-      { data: followData },
-      { data: myFollow },
       { data: banData },
       { data: outgoingRequest },
       { data: incomingRequest },
@@ -86,11 +83,6 @@ export default function UserProfileScreen() {
       supabase.from('reviews')
         .select('id, rating, comment, profiles!reviews_from_user_id_fkey(name, avatar)')
         .eq('to_user_id', userId).order('created_at', { ascending: false }).limit(10),
-      supabase.from('follows').select('follower_id').eq('following_id', userId),
-      currentUser
-        ? supabase.from('follows').select('follower_id')
-            .eq('follower_id', currentUser.id).eq('following_id', userId).maybeSingle()
-        : Promise.resolve({ data: null }),
       canModerate
         ? supabase.from('user_bans').select('user_id').eq('user_id', userId).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -127,14 +119,12 @@ export default function UserProfileScreen() {
 
     setReviews((reviewsData ?? []).map((r: any) => ({
       id: r.id,
-      fromName: (r.profiles as any)?.name ?? 'Пользователь',
+      fromName: (r.profiles as any)?.name ?? t('userLabel'),
       fromAvatar: (r.profiles as any)?.avatar ?? '🧑',
       rating: r.rating,
       comment: r.comment,
     })));
 
-    setFollowersCount(followData?.length ?? 0);
-    setIsFollowing(!!myFollow);
     setIsBanned(!!banData);
     setIsBlocked(!!blockData);
     if (outgoingRequest?.status === 'accepted' || incomingRequest?.status === 'accepted') {
@@ -149,22 +139,6 @@ export default function UserProfileScreen() {
     setLoading(false);
   }
 
-  async function toggleFollow() {
-    if (!currentUser || isOwnProfile) return;
-    setFollowLoading(true);
-    if (isFollowing) {
-      await supabase.from('follows').delete()
-        .eq('follower_id', currentUser.id).eq('following_id', userId);
-      setIsFollowing(false);
-      setFollowersCount(p => Math.max(0, p - 1));
-    } else {
-      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: userId });
-      setIsFollowing(true);
-      setFollowersCount(p => p + 1);
-    }
-    setFollowLoading(false);
-  }
-
   async function sendFriendRequest() {
     if (!currentUser || isOwnProfile || isBlocked) return;
 
@@ -174,11 +148,40 @@ export default function UserProfileScreen() {
     });
 
     if (error) {
-      Alert.alert('Не удалось отправить заявку', error.message);
+      Alert.alert(t('friendRequestSendError'), error.message);
       return;
     }
 
     setFriendStatus('outgoing');
+  }
+
+  async function cancelFriendRequest() {
+    if (!currentUser || isOwnProfile) return;
+
+    const { error } = await supabase
+      .from('friend_requests')
+      .delete()
+      .eq('from_user_id', currentUser.id)
+      .eq('to_user_id', userId);
+
+    if (error) {
+      Alert.alert(t('error'), error.message);
+      return;
+    }
+
+    setFriendStatus('none');
+  }
+
+  async function removeFriendRequest() {
+    if (!currentUser || isOwnProfile) return;
+
+    // Remove accepted friendship from both directions
+    await supabase.from('friend_requests').delete()
+      .eq('from_user_id', currentUser.id).eq('to_user_id', userId);
+    await supabase.from('friend_requests').delete()
+      .eq('from_user_id', userId).eq('to_user_id', currentUser.id);
+
+    setFriendStatus('none');
   }
 
   async function acceptFriendRequest() {
@@ -191,7 +194,7 @@ export default function UserProfileScreen() {
       .eq('to_user_id', currentUser.id);
 
     if (error) {
-      Alert.alert('Не удалось принять заявку', error.message);
+      Alert.alert(t('friendRequestAcceptError'), error.message);
       return;
     }
 
@@ -205,17 +208,17 @@ export default function UserProfileScreen() {
       const { error } = await supabase.from('blocks').delete()
         .eq('blocker_id', currentUser.id).eq('blocked_id', userId);
       if (error) {
-        Alert.alert('Не удалось разблокировать', error.message);
+        Alert.alert(t('unblockError'), error.message);
         return;
       }
       setIsBlocked(false);
       return;
     }
 
-    Alert.alert('Заблокировать пользователя?', 'Вы не будете видеть его активность и не сможете взаимодействовать с ним.', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('blockUserTitle'), t('blockUserText'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Заблокировать',
+        text: t('blockUserAction'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase.from('blocks').insert({
@@ -224,12 +227,11 @@ export default function UserProfileScreen() {
           });
 
           if (error) {
-            Alert.alert('Не удалось заблокировать', error.message);
+            Alert.alert(t('blockError'), error.message);
             return;
           }
 
           setIsBlocked(true);
-          setIsFollowing(false);
           setFriendStatus('none');
         },
       },
@@ -249,19 +251,19 @@ export default function UserProfileScreen() {
       setBanLoading(false);
 
       if (error) {
-        Alert.alert('Не удалось забанить', error.message);
+        Alert.alert(t('banError'), error.message);
         return;
       }
 
       setIsBanned(true);
     };
 
-    Alert.alert('Причина бана', `${displayName} не сможет пользоваться основными функциями приложения.`, [
-      { text: 'Отмена', style: 'cancel' },
-      { text: 'Спам', style: 'destructive', onPress: () => banWithReason('Спам') },
-      { text: 'Оскорбления', style: 'destructive', onPress: () => banWithReason('Оскорбления') },
-      { text: 'Небезопасное поведение', style: 'destructive', onPress: () => banWithReason('Небезопасное поведение') },
-      { text: 'Нарушение правил', style: 'destructive', onPress: () => banWithReason('Нарушение правил сообщества') },
+    Alert.alert(t('banReasonTitle'), `${displayName} ${t('banUserText')}`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('spamReason'), style: 'destructive', onPress: () => banWithReason(t('spamReason')) },
+      { text: t('insultsReason'), style: 'destructive', onPress: () => banWithReason(t('insultsReason')) },
+      { text: t('unsafeReason'), style: 'destructive', onPress: () => banWithReason(t('unsafeReason')) },
+      { text: t('rulesReason'), style: 'destructive', onPress: () => banWithReason(t('rulesReason')) },
     ]);
   }
 
@@ -276,36 +278,36 @@ export default function UserProfileScreen() {
       });
 
       if (error) {
-        Alert.alert('Не удалось отправить жалобу', error.message);
+        Alert.alert(t('reportSendError'), error.message);
         return;
       }
 
-      Alert.alert('Жалоба отправлена', 'Модератор рассмотрит ее в ближайшее время.');
+      Alert.alert(t('reportSentTitle'), t('reportSentText'));
     };
 
-    Alert.alert('Пожаловаться', `Что не так с пользователем ${displayName}?`, [
-      { text: 'Отмена', style: 'cancel' },
-      { text: 'Спам', onPress: () => reportWithReason('Спам') },
-      { text: 'Оскорбления', onPress: () => reportWithReason('Оскорбления') },
-      { text: 'Небезопасное поведение', onPress: () => reportWithReason('Небезопасное поведение') },
-      { text: 'Другое нарушение', onPress: () => reportWithReason('Другое нарушение') },
+    Alert.alert(t('reportUserTitle'), `${t('reportUserPrompt')} ${displayName}?`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('spamReason'), onPress: () => reportWithReason(t('spamReason')) },
+      { text: t('insultsReason'), onPress: () => reportWithReason(t('insultsReason')) },
+      { text: t('unsafeReason'), onPress: () => reportWithReason(t('unsafeReason')) },
+      { text: t('otherViolationReason'), onPress: () => reportWithReason(t('otherViolationReason')) },
     ]);
   }
 
   async function unbanUser() {
     if (!currentUser || !canModerate || isOwnProfile) return;
 
-    Alert.alert('Разбанить пользователя?', `${displayName} снова будет доступен для сообщества.`, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('unbanTitle'), `${displayName} ${t('unbanText')}`, [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Разбанить',
+        text: t('unban'),
         onPress: async () => {
           setBanLoading(true);
           const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
           setBanLoading(false);
 
           if (error) {
-            Alert.alert('Не удалось разбанить', error.message);
+            Alert.alert(t('unbanError'), error.message);
             return;
           }
 
@@ -360,24 +362,6 @@ export default function UserProfileScreen() {
           {/* Action Buttons Section */}
           <View style={styles.actionSection}>
             <View style={styles.mainActionsRow}>
-              {!isOwnProfile && currentUser && (
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionBtn,
-                    isFollowing
-                      ? { backgroundColor: theme.card, borderColor: theme.border }
-                      : { backgroundColor: theme.accent, borderColor: theme.accent },
-                  ]}
-                  onPress={toggleFollow}
-                  disabled={followLoading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.primaryActionBtnText, { color: isFollowing ? theme.text : '#FFF' }]}>
-                    {isFollowing ? '✓ Подписка' : 'Подписаться'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
               {!isOwnProfile && currentUser && !isBlocked && (
                 <TouchableOpacity
                   style={[
@@ -386,18 +370,31 @@ export default function UserProfileScreen() {
                       ? { backgroundColor: theme.card, borderColor: theme.border }
                       : { backgroundColor: theme.accent, borderColor: theme.accent }
                   ]}
-                  onPress={friendStatus === 'incoming' ? acceptFriendRequest : friendStatus === 'none' ? sendFriendRequest : undefined}
-                  disabled={friendStatus === 'outgoing' || friendStatus === 'accepted'}
+                  onPress={
+                    friendStatus === 'incoming' ? acceptFriendRequest
+                    : friendStatus === 'none' ? sendFriendRequest
+                    : friendStatus === 'outgoing' ? cancelFriendRequest
+                    : friendStatus === 'accepted' ? () => Alert.alert(
+                        t('removeFriend'),
+                        t('removeFriend') + '?',
+                        [
+                          { text: t('cancel'), style: 'cancel' },
+                          { text: t('friendsActionDelete'), style: 'destructive', onPress: removeFriendRequest },
+                        ]
+                      )
+                    : undefined
+                  }
+                  disabled={false}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.primaryActionBtnText, { color: friendStatus === 'accepted' ? theme.text : '#FFF' }]}>
                     {friendStatus === 'accepted'
-                      ? '✓ В друзьях'
+                      ? t('friendAccepted')
                       : friendStatus === 'outgoing'
-                        ? 'Отправлено'
+                        ? t('friendsActionCancel')
                         : friendStatus === 'incoming'
-                          ? 'Принять'
-                          : 'В друзья'}
+                          ? t('accept')
+                          : t('friendsShort')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -412,7 +409,7 @@ export default function UserProfileScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.secondaryActionBtnText, { color: isBlocked ? theme.accent : theme.subtext }]}>
-                    {isBlocked ? 'Разблокировать' : 'Блок'}
+                    {isBlocked ? t('unblock') : t('block')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -423,7 +420,7 @@ export default function UserProfileScreen() {
                   onPress={reportUser}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.secondaryActionBtnText, { color: theme.subtext }]}>Жалоба</Text>
+                  <Text style={[styles.secondaryActionBtnText, { color: theme.subtext }]}>{t('complaint')}</Text>
                 </TouchableOpacity>
               )}
 
@@ -438,7 +435,7 @@ export default function UserProfileScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.secondaryActionBtnText, { color: theme.danger }]}>
-                    {isBanned ? 'Разбанить' : 'Бан'}
+                    {isBanned ? t('unban') : t('ban')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -449,9 +446,9 @@ export default function UserProfileScreen() {
         {/* Stats Row Redesigned into Grid Tiles */}
         <View style={styles.statsRowContainer}>
           {[
-            { label: 'Ивентов', value: profile?.eventsJoined ?? 0 },
-            { label: 'Подписчики', value: followersCount },
-            { label: 'Отзывов', value: profile?.reviewsCount ?? 0 },
+            { label: t('eventsLabel'), value: profile?.eventsJoined ?? 0 },
+            { label: t('friendsLabel'), value: profile?.friendsMade ?? 0 },
+            { label: t('reviewsLabel'), value: profile?.reviewsCount ?? 0 },
           ].map((stat) => (
             <View
               key={stat.label}
@@ -483,7 +480,7 @@ export default function UserProfileScreen() {
               }
             ]}
           >
-            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Ивенты участника</Text>
+            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('participantEvents')}</Text>
             {events.map((event, i) => (
               <View key={event.id} style={[styles.eventRow, { borderTopColor: theme.border }, i === 0 && { borderTopWidth: 0 }]}>
                 <Text style={styles.eventIcon}>{categoryEmojis[event.category] ?? '✨'}</Text>
@@ -492,7 +489,7 @@ export default function UserProfileScreen() {
                   <Text style={[styles.eventTime, { color: theme.subtext }]}>{event.datetime}</Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: theme.accentLight, borderColor: theme.border, borderWidth: 1 }]}>
-                  <Text style={[styles.badgeText, { color: theme.accent }]}>{event.participantsCount} чел.</Text>
+                  <Text style={[styles.badgeText, { color: theme.accent }]}>{event.participantsCount} {t('personCount')}</Text>
                 </View>
               </View>
             ))}
@@ -510,11 +507,11 @@ export default function UserProfileScreen() {
             }
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Отзывы</Text>
+          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('reviewsSectionTitle')}</Text>
           {reviews.length === 0 ? (
             <View style={[styles.emptyReviews, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
               <Text style={styles.emptyReviewsIcon}>★</Text>
-              <Text style={[styles.emptyReviewsText, { color: theme.subtext }]}>Отзывов пока нет</Text>
+              <Text style={[styles.emptyReviewsText, { color: theme.subtext }]}>{t('reviewsSection')}</Text>
             </View>
           ) : (
             reviews.map((review, i) => (

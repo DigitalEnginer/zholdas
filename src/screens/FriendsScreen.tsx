@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RequestStatus = 'pending' | 'accepted' | 'declined';
@@ -32,6 +33,7 @@ interface ProfileSummary {
 export default function FriendsScreen() {
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<Nav>();
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileSummary>>({});
@@ -53,7 +55,7 @@ export default function FriendsScreen() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      Alert.alert('Не удалось загрузить друзей', error.message);
+      Alert.alert(t('friendsLoadError'), error.message);
       setLoading(false);
       return;
     }
@@ -70,7 +72,7 @@ export default function FriendsScreen() {
       (profileData ?? []).forEach((p: any) => {
         nextProfiles[p.id] = {
           id: p.id,
-          name: p.name ?? 'Пользователь',
+          name: p.name ?? t('userLabel'),
           avatar: p.avatar ?? '👤',
         };
       });
@@ -84,7 +86,7 @@ export default function FriendsScreen() {
   async function updateRequest(id: string, status: RequestStatus) {
     const { error } = await supabase.from('friend_requests').update({ status }).eq('id', id);
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t('error'), error.message);
       return;
     }
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
@@ -93,7 +95,7 @@ export default function FriendsScreen() {
   async function deleteRequest(id: string) {
     const { error } = await supabase.from('friend_requests').delete().eq('id', id);
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t('error'), error.message);
       return;
     }
     setRequests(prev => prev.filter(r => r.id !== id));
@@ -110,7 +112,7 @@ export default function FriendsScreen() {
   function renderRequest(request: FriendRequest) {
     if (!user) return null;
     const otherId = request.from_user_id === user.id ? request.to_user_id : request.from_user_id;
-    const profile = profiles[otherId] ?? { id: otherId, name: 'Пользователь', avatar: '👤' };
+    const profile = profiles[otherId] ?? { id: otherId, name: t('userLabel'), avatar: '👤' };
     const incoming = request.to_user_id === user.id;
 
     const dotColor = request.status === 'accepted'
@@ -128,7 +130,7 @@ export default function FriendsScreen() {
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
               <Text style={[styles.meta, { color: theme.subtext }]}>
-                {request.status === 'accepted' ? 'В друзьях' : incoming ? 'Хочет добавить вас' : 'Заявка отправлена'}
+                {request.status === 'accepted' ? t('friendsStatusInFriends') : incoming ? t('friendsStatusIncoming') : t('friendsStatusOutgoing')}
               </Text>
             </View>
           </View>
@@ -136,24 +138,24 @@ export default function FriendsScreen() {
         {incoming && request.status === 'pending' && (
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.accent }]} onPress={() => updateRequest(request.id, 'accepted')} activeOpacity={0.8}>
-              <Text style={styles.actionText}>Принять</Text>
+              <Text style={styles.actionText}>{t('friendsActionAccept')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.border }]} onPress={() => updateRequest(request.id, 'declined')} activeOpacity={0.8}>
-              <Text style={[styles.actionText, { color: theme.text }]}>Нет</Text>
+              <Text style={[styles.actionText, { color: theme.text }]}>{t('friendsActionDeclined')}</Text>
             </TouchableOpacity>
           </View>
         )}
         {!incoming && request.status === 'pending' && (
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.inputBg, borderWidth: 1, borderColor: theme.border }]} onPress={() => deleteRequest(request.id)} activeOpacity={0.8}>
-              <Text style={[styles.actionText, { color: theme.text }]}>Отменить</Text>
+              <Text style={[styles.actionText, { color: theme.text }]}>{t('friendsActionCancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
         {request.status === 'accepted' && (
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FFF1F1', borderWidth: 1, borderColor: theme.danger }]} onPress={() => deleteRequest(request.id)} activeOpacity={0.8}>
-              <Text style={[styles.actionText, { color: theme.danger }]}>Удалить</Text>
+              <Text style={[styles.actionText, { color: theme.danger }]}>{t('friendsActionDelete')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -173,9 +175,9 @@ export default function FriendsScreen() {
   const incoming = requests.filter(r => r.status === 'pending' && r.to_user_id === user?.id);
   const outgoing = requests.filter(r => r.status === 'pending' && r.from_user_id === user?.id);
   const tabs: Array<{ key: FriendsTab; label: string; data: FriendRequest[] }> = [
-    { key: 'friends', label: `Друзья (${accepted.length})`, data: accepted },
-    { key: 'incoming', label: `Входящие (${incoming.length})`, data: incoming },
-    { key: 'outgoing', label: `Исходящие (${outgoing.length})`, data: outgoing },
+    { key: 'friends', label: `${t('friendsTabFriends')} (${accepted.length})`, data: accepted },
+    { key: 'incoming', label: `${t('incomingWithCount')} (${incoming.length})`, data: incoming },
+    { key: 'outgoing', label: `${t('outgoingWithCount')} (${outgoing.length})`, data: outgoing },
   ];
   const currentTab = tabs.find(tab => tab.key === activeTab) ?? tabs[0];
 
@@ -215,7 +217,7 @@ export default function FriendsScreen() {
         <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{currentTab.label}</Text>
           {currentTab.data.length === 0 ? (
-            <Text style={[styles.empty, { color: theme.subtext }]}>У вас пока нет заявок в этой вкладке</Text>
+            <Text style={[styles.empty, { color: theme.subtext }]}>{t('friendsTabEmpty')}</Text>
           ) : (
             currentTab.data.map(renderRequest)
           )}

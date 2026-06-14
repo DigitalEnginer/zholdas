@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Marker, Callout } from 'react-native-maps';
 import { Event } from '../types';
 import { categoryEmojis } from '../data/mockEvents';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   event: Event;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function EventMarker({ event, joined, onCalloutPress }: Props) {
+  const { t } = useLanguage();
+
   return (
     <Marker coordinate={event.coordinate} tracksViewChanges={false}>
       <View style={[styles.marker, joined && styles.markerJoined]}>
@@ -24,7 +27,7 @@ export default function EventMarker({ event, joined, onCalloutPress }: Props) {
             <Text style={styles.calloutParticipants}>
               👥 {event.participantsCount}/{event.maxParticipants}
             </Text>
-            <Text style={styles.calloutAction}>Подробнее →</Text>
+            <Text style={styles.calloutAction}>{t('detailsBtn')} →</Text>
           </View>
         </View>
       </Callout>

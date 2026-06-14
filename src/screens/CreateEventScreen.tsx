@@ -13,9 +13,10 @@ import { RootStackParamList, EventCategory, GenderFilter } from '../types';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { categoryEmojis, categoryLabels } from '../data/mockEvents';
+import { categoryEmojis } from '../data/mockEvents';
 import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 import { userMessageFromModerationError, validateEventContent } from '../lib/contentModeration';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
@@ -23,10 +24,10 @@ type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
 const CATEGORIES: EventCategory[] = ['mountains', 'theatre', 'restaurant', 'sport', 'other'];
 const ALMATY = { latitude: 43.238, longitude: 76.945 };
 
-const GENDER_FILTERS: Array<{ key: GenderFilter; label: string; emoji: string }> = [
-  { key: 'all', label: 'Все', emoji: '👥' },
-  { key: 'male', label: 'Только мужчины', emoji: '👨' },
-  { key: 'female', label: 'Только женщины', emoji: '👩' },
+const GENDER_FILTERS: Array<{ key: GenderFilter; emoji: string }> = [
+  { key: 'all', emoji: '👥' },
+  { key: 'male', emoji: '👨' },
+  { key: 'female', emoji: '👩' },
 ];
 
 export default function CreateEventScreen() {
@@ -35,6 +36,7 @@ export default function CreateEventScreen() {
   const { createEvent, updateEvent, events } = useEvents();
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const eventId = route.params?.eventId;
   const editingEvent = eventId ? events.find(e => e.id === eventId) : undefined;
   const mapRef = useRef<MapView>(null);
@@ -57,8 +59,8 @@ export default function CreateEventScreen() {
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   React.useEffect(() => {
-    navigation.setOptions({ title: eventId ? 'Редактировать ивент' : 'Новый ивент' });
-  }, [eventId, navigation]);
+    navigation.setOptions({ title: eventId ? t('editEventTitle') : t('newEventTitle') });
+  }, [eventId, navigation, t]);
 
   React.useEffect(() => {
     if (!editingEvent) return;
@@ -86,7 +88,7 @@ export default function CreateEventScreen() {
         : `${q}, Алматы`;
       const results = await Location.geocodeAsync(fullQuery);
       if (results.length === 0) {
-        Alert.alert('Адрес не найден', 'Попробуй написать подробнее, например: "ул. Абая 10, Алматы"');
+        Alert.alert(t('addressNotFoundTitle'), t('addressNotFoundText'));
         return;
       }
       const { latitude, longitude } = results[0];
@@ -98,7 +100,7 @@ export default function CreateEventScreen() {
       };
       mapRef.current?.animateToRegion(region, 600);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось найти адрес');
+      Alert.alert(t('error'), t('addressSearchError'));
     } finally {
       setGeocoding(false);
     }
@@ -106,12 +108,12 @@ export default function CreateEventScreen() {
 
   async function pickImage() {
     if (!user) {
-      Alert.alert('', 'Сначала войди в аккаунт');
+      Alert.alert('', t('loginFirst'));
       return;
     }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('', 'Нужен доступ к фото'); return; }
+    if (status !== 'granted') { Alert.alert('', t('photoPickError')); return; }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -132,7 +134,7 @@ export default function CreateEventScreen() {
       await deletePublicStorageImage('event-photos', imageUri);
       setImageUri(publicUrl);
     } catch (e: any) {
-      Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');
+      Alert.alert(t('photoUploadError'), e.message ?? t('storageCheck'));
     } finally {
       setUploading(false);
     }
@@ -144,22 +146,22 @@ export default function CreateEventScreen() {
   }
 
   async function handleCreate() {
-    if (!title.trim()) { Alert.alert('Ошибка', 'Введите название'); return; }
-    if (!datetime.trim()) { Alert.alert('Ошибка', 'Укажите время'); return; }
+    if (!title.trim()) { Alert.alert(t('error'), t('titleRequired')); return; }
+    if (!datetime.trim()) { Alert.alert(t('error'), t('datetimeRequired')); return; }
     const max = parseInt(maxParticipants, 10);
-    if (!max || max < 2) { Alert.alert('Ошибка', 'Минимум 2 участника'); return; }
+    if (!max || max < 2) { Alert.alert(t('error'), t('minParticipantsError')); return; }
     const moderation = validateEventContent(title, description);
-    if (!moderation.ok) { Alert.alert('Модерация', moderation.message); return; }
+    if (!moderation.ok) { Alert.alert(t('moderationTitle'), moderation.message); return; }
 
     const minA = minAge ? parseInt(minAge, 10) : undefined;
     const maxA = maxAge ? parseInt(maxAge, 10) : undefined;
-    if (minA && maxA && minA > maxA) { Alert.alert('Ошибка', 'Мин. возраст не может быть больше макс.'); return; }
+    if (minA && maxA && minA > maxA) { Alert.alert(t('error'), t('ageRangeError')); return; }
 
     setLoading(true);
     try {
       const payload = {
         title: title.trim(),
-        description: description.trim() || 'Присоединяйся!',
+        description: description.trim() || t('defaultEventDescription'),
         category,
         datetime: datetime.trim(),
         maxParticipants: max,
@@ -174,19 +176,19 @@ export default function CreateEventScreen() {
 
       if (eventId) {
         await updateEvent(eventId, payload);
-        Alert.alert('Готово!', 'Ивент обновлен', [
-          { text: 'К деталям', onPress: () => navigation.replace('EventDetails', { eventId }) },
+        Alert.alert(t('done'), t('eventUpdated'), [
+          { text: t('toDetails'), onPress: () => navigation.replace('EventDetails', { eventId }) },
         ]);
         return;
       }
 
       const event = await createEvent(payload);
-      Alert.alert('Готово!', 'Ивент создан', [
-        { text: 'Открыть чат', onPress: () => navigation.replace('Chat', { eventId: event.id, eventTitle: event.title }) },
-        { text: 'На карту', onPress: () => navigation.navigate('Main') },
+      Alert.alert(t('done'), t('eventCreated'), [
+        { text: t('openChatAction'), onPress: () => navigation.replace('Chat', { eventId: event.id, eventTitle: event.title }) },
+        { text: t('toMap'), onPress: () => navigation.navigate('Main') },
       ]);
     } catch (e: any) {
-      Alert.alert('Ошибка', userMessageFromModerationError(e.message) ?? 'Не удалось создать ивент');
+      Alert.alert(t('error'), userMessageFromModerationError(e.message) ?? t('eventCreateSubmit'));
     } finally {
       setLoading(false);
     }
@@ -202,7 +204,7 @@ export default function CreateEventScreen() {
 
           {/* Категория */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.subtext }]}>Категория *</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('category')} *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
               {CATEGORIES.map(cat => (
                 <TouchableOpacity
@@ -220,7 +222,7 @@ export default function CreateEventScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.catLabel, { color: category === cat ? theme.accent : theme.text }]}>
-                    {categoryEmojis[cat]} {categoryLabels[cat]}
+                    {categoryEmojis[cat]} {t(`filter${cat === 'mountains' ? 'Mountains' : cat === 'theatre' ? 'Theatre' : cat === 'restaurant' ? 'Restaurant' : cat === 'sport' ? 'Sport' : 'Other'}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -229,7 +231,7 @@ export default function CreateEventScreen() {
 
           {/* Основные поля */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.subtext }]}>Название *</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('titleLabel')}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -239,7 +241,7 @@ export default function CreateEventScreen() {
                   color: theme.text,
                 }
               ]}
-              placeholder="Напр. Поход на Кок-Жайляу"
+              placeholder={t('createEventTitlePlaceholder')}
               placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={title}
               onChangeText={setTitle}
@@ -248,7 +250,7 @@ export default function CreateEventScreen() {
               onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={[styles.label, { color: theme.subtext }]}>Описание</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('descLabel')}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -259,7 +261,7 @@ export default function CreateEventScreen() {
                   color: theme.text,
                 }
               ]}
-              placeholder="Расскажи подробнее об ивенте..."
+              placeholder={t('createEventDescPlaceholder')}
               placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={description}
               onChangeText={setDescription}
@@ -270,7 +272,7 @@ export default function CreateEventScreen() {
               onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={[styles.label, { color: theme.subtext }]}>Когда? *</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('datetimeLabel')}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -280,7 +282,7 @@ export default function CreateEventScreen() {
                   color: theme.text,
                 }
               ]}
-              placeholder="Напр. Воскресенье, 08:00"
+              placeholder={t('createEventDatetimePlaceholder')}
               placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
               value={datetime}
               onChangeText={setDatetime}
@@ -289,7 +291,7 @@ export default function CreateEventScreen() {
               onBlur={() => setFocusedInput(null)}
             />
 
-            <Text style={[styles.label, { color: theme.subtext }]}>Макс. участников</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('maxParticipantsLabel')}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -312,7 +314,7 @@ export default function CreateEventScreen() {
 
           {/* Место */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.subtext }]}>Место</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('location')}</Text>
 
             <View style={styles.addressRow}>
               <TextInput
@@ -325,7 +327,7 @@ export default function CreateEventScreen() {
                     color: theme.text,
                   }
                 ]}
-                placeholder="Введи адрес, напр. ул. Абая 10"
+                placeholder={t('addressPlaceholder')}
                 placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                 value={addressInput}
                 onChangeText={setAddressInput}
@@ -346,7 +348,7 @@ export default function CreateEventScreen() {
               >
                 {geocoding
                   ? <ActivityIndicator color="#FFF" size="small" />
-                  : <Text style={styles.geocodeBtnText}>Найти</Text>
+                  : <Text style={styles.geocodeBtnText}>{t('findAddressBtn')}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -354,7 +356,7 @@ export default function CreateEventScreen() {
             {address ? (
               <Text style={[styles.addressFound, { color: theme.accent }]}>📍 {address}</Text>
             ) : (
-              <Text style={[styles.hint, { color: theme.subtext }]}>Или нажми на карту чтобы выбрать место вручную</Text>
+              <Text style={[styles.hint, { color: theme.subtext }]}>{t('mapPickHint')}</Text>
             )}
 
             <View style={[styles.mapWrap, { borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
@@ -378,9 +380,9 @@ export default function CreateEventScreen() {
 
           {/* Аудитория */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.subtext }]}>Аудитория</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('genderFilterLabel')}</Text>
 
-            <Text style={[styles.sublabel, { color: theme.subtext }]}>Для кого</Text>
+            <Text style={[styles.sublabel, { color: theme.subtext }]}>{t('audienceForWho')}</Text>
             <View style={styles.row}>
               {GENDER_FILTERS.map(opt => (
                 <TouchableOpacity
@@ -396,16 +398,16 @@ export default function CreateEventScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.filterLabel, { color: genderFilter === opt.key ? theme.accent : theme.text }]}>
-                    {opt.emoji} {opt.label}
+                    {opt.emoji} {opt.key === 'male' ? t('genderFilterMale') : opt.key === 'female' ? t('genderFilterFemale') : t('genderFilterAll')}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={[styles.sublabel, { color: theme.subtext }]}>Возрастной диапазон (необязательно)</Text>
+            <Text style={[styles.sublabel, { color: theme.subtext }]}>{t('ageRangeLabel')}</Text>
             <View style={styles.ageRow}>
               <View style={styles.ageField}>
-                <Text style={[styles.ageHint, { color: theme.subtext }]}>от</Text>
+                <Text style={[styles.ageHint, { color: theme.subtext }]}>{t('ageMin')}</Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -428,7 +430,7 @@ export default function CreateEventScreen() {
               </View>
               <Text style={[styles.ageDash, { color: theme.border }]}>—</Text>
               <View style={styles.ageField}>
-                <Text style={[styles.ageHint, { color: theme.subtext }]}>до</Text>
+                <Text style={[styles.ageHint, { color: theme.subtext }]}>{t('ageMax')}</Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -449,14 +451,14 @@ export default function CreateEventScreen() {
                   onBlur={() => setFocusedInput(null)}
                 />
               </View>
-              <Text style={[styles.ageUnit, { color: theme.subtext }]}>лет</Text>
+              <Text style={[styles.ageUnit, { color: theme.subtext }]}>{t('ageUnit')}</Text>
             </View>
 
             {(genderFilter !== 'all' || minAge || maxAge) && (
               <View style={[styles.audienceBadge, { backgroundColor: theme.accentLight, borderColor: theme.border }]}>
                 <Text style={[styles.audienceText, { color: theme.accent }]}>
-                  {genderFilter === 'male' ? '👨 Мужчины' : genderFilter === 'female' ? '👩 Женщины' : '👥 Все'}
-                  {(minAge || maxAge) ? ` · ${minAge || '?'}–${maxAge || '?'} лет` : ''}
+                  {genderFilter === 'male' ? `👨 ${t('genderFilterMale')}` : genderFilter === 'female' ? `👩 ${t('genderFilterFemale')}` : `👥 ${t('genderFilterAll')}`}
+                  {(minAge || maxAge) ? ` · ${minAge || '?'}–${maxAge || '?'} ${t('ageUnit')}` : ''}
                 </Text>
               </View>
             )}
@@ -464,7 +466,7 @@ export default function CreateEventScreen() {
 
           {/* Фото */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.subtext }]}>Фото (необязательно)</Text>
+            <Text style={[styles.label, { color: theme.subtext }]}>{t('photoLabel')}</Text>
             <TouchableOpacity
               style={[
                 styles.photoBtn,
@@ -484,13 +486,13 @@ export default function CreateEventScreen() {
               ) : (
                 <View style={styles.photoPlaceholder}>
                   <Text style={[styles.photoIcon, { color: theme.subtext }]}>📷</Text>
-                  <Text style={[styles.photoHint, { color: theme.subtext }]}>Добавить фото</Text>
+                  <Text style={[styles.photoHint, { color: theme.subtext }]}>{t('photoHint')}</Text>
                 </View>
               )}
             </TouchableOpacity>
             {imageUri && (
               <TouchableOpacity onPress={removeEventPhoto} style={styles.removePhoto}>
-                <Text style={[styles.removePhotoText, { color: theme.danger }]}>✕ Удалить фото</Text>
+                <Text style={[styles.removePhotoText, { color: theme.danger }]}>✕ {t('photoRemove')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -506,7 +508,7 @@ export default function CreateEventScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.createBtnText}>
-              {loading ? (eventId ? 'Сохраняем...' : 'Создаём...') : eventId ? 'Сохранить изменения' : '✨ Создать ивент'}
+              {loading ? (eventId ? t('saving') : t('creating')) : eventId ? t('eventSaveSubmit') : t('createEventSubmitDecorated')}
             </Text>
           </TouchableOpacity>
 

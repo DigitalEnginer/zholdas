@@ -9,11 +9,13 @@ import { useAuth, AVATARS } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AvatarImage from '../components/AvatarImage';
 import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const { user, updateUser } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
 
   const currentAvatarIndex = AVATARS.indexOf(user?.avatar ?? '🧑');
   const [name, setName] = useState(user?.name ?? '');
@@ -39,7 +41,7 @@ export default function EditProfileScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('', 'Нужен доступ к фото');
+      Alert.alert('', t('photoPickError'));
       return;
     }
 
@@ -61,14 +63,14 @@ export default function EditProfileScreen() {
       await deletePublicStorageImage('profile-photos', avatarValue);
       setAvatarValue(publicUrl);
     } catch (e: any) {
-      Alert.alert('Не удалось загрузить фото', e.message ?? 'Проверь Supabase Storage');
+      Alert.alert(t('photoUploadError'), e.message ?? t('storageCheck'));
     } finally {
       setUploadingAvatar(false);
     }
   }
 
   async function handleSave() {
-    if (!name.trim()) { Alert.alert('', 'Введи имя'); return; }
+    if (!name.trim()) { Alert.alert('', t('nameRequired')); return; }
     setLoading(true);
     try {
       await updateUser({
@@ -78,7 +80,7 @@ export default function EditProfileScreen() {
       });
       navigation.goBack();
     } catch {
-      Alert.alert('Ошибка', 'Не удалось сохранить');
+      Alert.alert(t('error'), t('saveError'));
     } finally {
       setLoading(false);
     }
@@ -111,10 +113,10 @@ export default function EditProfileScreen() {
             {uploadingAvatar ? (
               <ActivityIndicator color={theme.accent} size="small" />
             ) : (
-              <Text style={[styles.photoAvatarText, { color: theme.accent }]}>Выбрать фото</Text>
+              <Text style={[styles.photoAvatarText, { color: theme.accent }]}>{t('choosePhoto')}</Text>
             )}
           </TouchableOpacity>
-          <Text style={[styles.hint, { color: theme.subtext }]}>Или выбери emoji-аватар</Text>
+          <Text style={[styles.hint, { color: theme.subtext }]}>{t('chooseEmojiAvatar')}</Text>
           <View style={styles.avatarGrid}>
             {AVATARS.map((a, i) => {
               const isActive = avatarValue === a;
@@ -152,7 +154,7 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={[styles.label, { color: theme.subtext }]}>Имя</Text>
+          <Text style={[styles.label, { color: theme.subtext }]}>{t('editProfileName')}</Text>
           <TextInput
             style={[
               styles.input,
@@ -166,12 +168,12 @@ export default function EditProfileScreen() {
             onChangeText={setName}
             onFocus={() => setIsNameFocused(true)}
             onBlur={() => setIsNameFocused(false)}
-            placeholder="Твоё имя"
+            placeholder={t('yourNamePlaceholder')}
             placeholderTextColor={theme.subtext + '80'}
             maxLength={40}
           />
 
-          <Text style={[styles.label, { color: theme.subtext }]}>О себе</Text>
+          <Text style={[styles.label, { color: theme.subtext }]}>{t('editProfileBio')}</Text>
           <TextInput
             style={[
               styles.input,
@@ -186,7 +188,7 @@ export default function EditProfileScreen() {
             onChangeText={setBio}
             onFocus={() => setIsBioFocused(true)}
             onBlur={() => setIsBioFocused(false)}
-            placeholder="Расскажи о себе..."
+            placeholder={t('aboutPlaceholder')}
             placeholderTextColor={theme.subtext + '80'}
             multiline
             numberOfLines={3}
@@ -208,7 +210,7 @@ export default function EditProfileScreen() {
           {loading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.saveBtnText}>Сохранить изменения</Text>
+            <Text style={styles.saveBtnText}>{t('saveChanges')}</Text>
           )}
         </TouchableOpacity>
         <View style={{ height: 40 }} />

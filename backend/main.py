@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
 import os
 import re
 import requests
@@ -11,6 +12,16 @@ from urllib.parse import quote
 from uuid import UUID
 
 load_dotenv()
+
+# Create a global session for connection pooling to speed up Supabase REST and Auth calls
+session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
+
+SYSTEM_SETTINGS_CACHE = {}
+SYSTEM_SETTINGS_CACHE_TTL = 300 # 5 minutes
+SYSTEM_SETTINGS_CACHE_TIME = 0
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -40,9 +51,8 @@ def parse_csv_env(value: str):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=parse_csv_env(BACKEND_CORS_ORIGINS),
-    allow_origin_regex=BACKEND_CORS_ORIGIN_REGEX or None,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -185,7 +195,7 @@ def verify_supabase_token(authorization: str | None):
 
     token = authorization.replace("Bearer ", "")
 
-    response = requests.get(
+    response = session.get(
         f"{SUPABASE_URL}/auth/v1/user",
         headers={
             "Authorization": f"Bearer {token}",
@@ -211,7 +221,7 @@ def service_role_headers():
 
 
 def fetch_service_rows(table: str, params: dict):
-    response = requests.get(
+    response = session.get(
         f"{SUPABASE_URL}/rest/v1/{table}",
         headers=service_role_headers(),
         params=params,
@@ -225,7 +235,7 @@ def fetch_service_rows(table: str, params: dict):
 
 
 def insert_service_row(table: str, payload: dict):
-    response = requests.post(
+    response = session.post(
         f"{SUPABASE_URL}/rest/v1/{table}",
         headers={
             **service_role_headers(),
@@ -240,7 +250,32 @@ def insert_service_row(table: str, payload: dict):
         raise_upstream_error("Supabase insert")
 
 
+def get_system_settings_cached():
+    global SYSTEM_SETTINGS_CACHE, SYSTEM_SETTINGS_CACHE_TIME
+    now = time.time()
+    if now - SYSTEM_SETTINGS_CACHE_TIME > SYSTEM_SETTINGS_CACHE_TTL:
+        if not SUPABASE_SERVICE_ROLE_KEY:
+            return SYSTEM_SETTINGS_CACHE
+        try:
+            response = session.get(
+                f"{SUPABASE_URL}/rest/v1/system_settings",
+                headers=service_role_headers(),
+                timeout=5,
+            )
+            if response.status_code == 200:
+                rows = response.json()
+                SYSTEM_SETTINGS_CACHE = {row["key"]: row["value"] for row in rows if "key" in row}
+                SYSTEM_SETTINGS_CACHE_TIME = now
+        except Exception:
+            pass
+    return SYSTEM_SETTINGS_CACHE
+
+
 def get_system_setting(key: str, default: str | None = None):
+    settings = get_system_settings_cached()
+    if key in settings:
+        return settings[key]
+
     if not SUPABASE_SERVICE_ROLE_KEY:
         return default
 
@@ -256,7 +291,10 @@ def get_system_setting(key: str, default: str | None = None):
     except HTTPException:
         return default
 
-    return rows[0].get("value") if rows else default
+    val = rows[0].get("value") if rows else default
+    if val is not None:
+        SYSTEM_SETTINGS_CACHE[key] = val
+    return val
 
 
 def get_system_setting_int(key: str, default: int):
@@ -306,7 +344,7 @@ def ensure_super_admin(user_id: str):
 
 
 def rest_delete(table: str, params: dict, *, optional: bool = False):
-    response = requests.delete(
+    response = session.delete(
         f"{SUPABASE_URL}/rest/v1/{table}",
         headers={
             **service_role_headers(),
@@ -326,7 +364,7 @@ def rest_delete(table: str, params: dict, *, optional: bool = False):
 
 
 def delete_auth_user(user_id: str):
-    response = requests.delete(
+    response = session.delete(
         f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
         headers=service_role_headers(),
         timeout=15,
@@ -337,7 +375,7 @@ def delete_auth_user(user_id: str):
 
 
 def list_storage_objects(bucket: str, prefix: str):
-    response = requests.post(
+    response = session.post(
         f"{SUPABASE_URL}/storage/v1/object/list/{bucket}",
         headers={
             **service_role_headers(),
@@ -358,7 +396,7 @@ def list_storage_objects(bucket: str, prefix: str):
 
 
 def delete_storage_object(bucket: str, path: str):
-    response = requests.delete(
+    response = session.delete(
         f"{SUPABASE_URL}/storage/v1/object/{bucket}/{quote(path, safe='/')}",
         headers=service_role_headers(),
         timeout=15,
@@ -417,7 +455,7 @@ def cleanup_user_data(target_user_id: str):
 
 
 def ensure_user_is_not_banned(user_id: str, token: str):
-    response = requests.get(
+    response = session.get(
         f"{SUPABASE_URL}/rest/v1/profiles",
         headers={
             "Authorization": f"Bearer {token}",
@@ -445,7 +483,7 @@ def save_ai_message(event_id: str, text: str):
     if not SUPABASE_SERVICE_ROLE_KEY:
         return False
 
-    response = requests.post(
+    response = session.post(
         f"{SUPABASE_URL}/rest/v1/messages",
         headers={
             "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
@@ -467,7 +505,7 @@ def save_ai_message(event_id: str, text: str):
 
 
 def ensure_event_participant(event_id: str, user_id: str, token: str):
-    response = requests.get(
+    response = session.get(
         f"{SUPABASE_URL}/rest/v1/event_participants",
         headers={
             "Authorization": f"Bearer {token}",
@@ -490,7 +528,7 @@ def ensure_event_participant(event_id: str, user_id: str, token: str):
 
 
 def load_recent_messages(event_id: str, token: str):
-    response = requests.get(
+    response = session.get(
         f"{SUPABASE_URL}/rest/v1/messages",
         headers={
             "Authorization": f"Bearer {token}",
@@ -571,25 +609,56 @@ def admin_delete_user(target_user_id: str, authorization: str | None = Header(de
 
     return {
         "deleted_user_id": target_user_id,
-        "deleted_email": target_profiles[0].get("email") if target_profiles else None,
+        "deleted_email": target_profiles[0].get('email') if target_profiles else None,
         "admin_id": admin_profile.get("id"),
     }
 
 
 @app.post("/chat")
 def chat(request: ChatRequest, authorization: str | None = Header(default=None)):
+    start_total = time.time()
     user = verify_supabase_token(authorization)
+    t_token = time.time() - start_total
+    
     token = authorization.replace("Bearer ", "") if authorization else ""
-    ensure_user_is_not_banned(user.get("id"), token)
+    user_id = user.get("id")
+
     ensure_ai_is_enabled()
+
     if request.event_id:
         request.event_id = ensure_uuid(request.event_id, "event_id")
-        ensure_event_participant(request.event_id, user.get("id"), token)
 
     try:
-        context_messages = load_recent_messages(request.event_id, token) if request.event_id else []
+        # Run DB checks in parallel using ThreadPoolExecutor to minimize latency
+        def check_banned_task():
+            ensure_user_is_not_banned(user_id, token)
+
+        def check_participant_task():
+            if request.event_id:
+                ensure_event_participant(request.event_id, user_id, token)
+
+        def load_messages_task():
+            if request.event_id:
+                return load_recent_messages(request.event_id, token)
+            return []
+
+        start_db = time.time()
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_ban = executor.submit(check_banned_task)
+            future_participant = executor.submit(check_participant_task)
+            future_messages = executor.submit(load_messages_task)
+
+            # Retrieve results (will raise any HTTPExceptions occurred during threads)
+            future_ban.result()
+            future_participant.result()
+            context_messages = future_messages.result()
+        t_db = time.time() - start_db
+
+        # In-memory validation
         ensure_ai_scope(request.message, request.event_title, context_messages)
-        ensure_ai_rate_limit(user.get("id"))
+        ensure_ai_rate_limit(user_id)
+
+        # Build chat prompt history
         chat_messages = [
             {
                 "role": "system",
@@ -622,23 +691,36 @@ def chat(request: ChatRequest, authorization: str | None = Header(default=None))
             "content": request.message,
         })
 
+        # OpenAI completion
+        start_openai = time.time()
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=chat_messages,
             temperature=0.4,
             max_tokens=220,
         )
+        t_openai = time.time() - start_openai
 
-        reply = response.choices[0].message.content
+        reply = response.choices[0].message.content.strip()
+
+        # Remove double prefixes if AI generated them (e.g. "Жолдас AI: ...")
+        reply = re.sub(r"^(Жолдас AI|Zholdas AI):\s*", "", reply, flags=re.IGNORECASE).strip()
+
+        start_save = time.time()
         saved = save_ai_message(request.event_id, reply) if request.event_id else False
+        t_save = time.time() - start_save
+        t_total = time.time() - start_total
+
+        print(f"[AI_CHAT_STATS] Total: {t_total:.3f}s | Token: {t_token:.3f}s | DB: {t_db:.3f}s | LLM: {t_openai:.3f}s | Save: {t_save:.3f}s")
 
         return {
-            "user_id": user.get("id"),
+            "user_id": user_id,
             "reply": reply,
             "saved": saved,
         }
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"Chat request failed error: {e}")
         raise HTTPException(status_code=500, detail="AI request failed")

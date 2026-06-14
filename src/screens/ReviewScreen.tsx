@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
 import AvatarImage from '../components/AvatarImage';
+import { useLanguage } from '../context/LanguageContext';
 
 type ReviewRoute = RouteProp<RootStackParamList, 'Review'>;
 
@@ -38,6 +39,7 @@ export default function ReviewScreen() {
   const { user, updateUser } = useAuth();
   const { events } = useEvents();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const { eventId, eventTitle } = route.params;
   const event = events.find(e => e.id === eventId);
 
@@ -71,7 +73,7 @@ export default function ReviewScreen() {
       .filter((ep: any) => !ep.profiles?.is_banned)
       .map((ep: any) => ({
         id: ep.user_id,
-        name: ep.profiles?.name ?? 'Пользователь',
+        name: ep.profiles?.name ?? t('userLabel'),
         avatar: ep.profiles?.avatar ?? '🧑',
       }));
     setParticipants(list);
@@ -80,13 +82,13 @@ export default function ReviewScreen() {
 
   async function handleSubmit() {
     if ((event?.status ?? 'active') !== 'finished') {
-      Alert.alert('', 'Отзывы можно оставить только после завершения ивента');
+      Alert.alert('', t('reviewEventNotFinished'));
       return;
     }
 
     const rated = Object.keys(ratings).filter(id => ratings[id] > 0);
     if (rated.length === 0) {
-      Alert.alert('', 'Оцени хотя бы одного участника');
+      Alert.alert('', t('reviewRatingEmptyAlert'));
       return;
     }
 
@@ -101,7 +103,7 @@ export default function ReviewScreen() {
 
       if (error) {
         if (error.message.includes('duplicate key')) {
-          Alert.alert('', 'Ты уже оставил отзыв этому участнику за этот ивент');
+          Alert.alert('', t('duplicateReview'));
         } else {
           Alert.alert('', error.message);
         }
@@ -120,8 +122,8 @@ export default function ReviewScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <View style={styles.successContainer}>
           <Text style={styles.successEmoji}>🎉</Text>
-          <Text style={[styles.successTitle, { color: theme.text }]}>Спасибо!</Text>
-          <Text style={[styles.successText, { color: theme.subtext }]}>Отзывы отправлены участникам</Text>
+          <Text style={[styles.successTitle, { color: theme.text }]}>{t('reviewThanksTitle')}</Text>
+          <Text style={[styles.successText, { color: theme.subtext }]}>{t('reviewSentToParticipants')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -131,7 +133,7 @@ export default function ReviewScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>Оцени участников</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('rateParticipantsTitle')}</Text>
           <Text style={[styles.subtitle, { color: theme.accent }]}>{eventTitle}</Text>
         </View>
 
@@ -139,7 +141,7 @@ export default function ReviewScreen() {
           <ActivityIndicator color={theme.accent} style={{ marginTop: 40 }} />
         ) : participants.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: theme.subtext }]}>Нет других участников для оценки</Text>
+            <Text style={[styles.emptyText, { color: theme.subtext }]}>{t('noParticipantsToReview')}</Text>
           </View>
         ) : (
           participants.map(participant => (
@@ -170,7 +172,7 @@ export default function ReviewScreen() {
                     color: theme.text,
                   }
                 ]}
-                placeholder="Оставить комментарий (необязательно)..."
+                placeholder={t('reviewCommentPlaceholder')}
                 placeholderTextColor={theme.subtext + '80'}
                 value={comments[participant.id] ?? ''}
                 onChangeText={t => setComments(prev => ({ ...prev, [participant.id]: t }))}
@@ -188,12 +190,12 @@ export default function ReviewScreen() {
             onPress={handleSubmit}
             activeOpacity={0.85}
           >
-            <Text style={styles.submitBtnText}>Отправить отзывы ⭐</Text>
+            <Text style={styles.submitBtnText}>{t('reviewSubmitBtn')} ⭐</Text>
           </TouchableOpacity>
         )}
 
         <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Text style={[styles.skipBtnText, { color: theme.subtext }]}>Пропустить</Text>
+          <Text style={[styles.skipBtnText, { color: theme.subtext }]}>{t('skip')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

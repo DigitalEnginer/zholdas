@@ -15,7 +15,6 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useHaptics } from '../hooks/useHaptics';
 import { supabase } from '../lib/supabase';
-import { eventStatusLabels } from '../data/mockEvents';
 import { uploadImageToStorage } from '../lib/storage';
 import { userMessageFromModerationError, validateChatMessage } from '../lib/contentModeration';
 
@@ -97,6 +96,7 @@ export default function ChatScreen() {
   const joined = !!user && isJoined(eventId, user.id);
   const eventStatus = event?.status ?? 'active';
   const isActive = eventStatus === 'active';
+  const eventStatusText = eventStatus === 'finished' ? t('statusFinished') : eventStatus === 'cancelled' ? t('statusCancelled') : t('statusActive');
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set());
@@ -199,6 +199,15 @@ export default function ChatScreen() {
   async function handleSend() {
     const text = inputText.trim();
     if (!text) return;
+
+    // Auto-route to AI if message starts with @ai
+    if (text.toLowerCase().startsWith('@ai')) {
+      const aiQuestion = text.slice(3).trim();
+      setInputText('');
+      handleAI(aiQuestion || undefined);
+      return;
+    }
+
     const moderation = validateChatMessage(text);
     if (!moderation.ok) {
       Alert.alert(t('moderationPanel'), moderation.message);
@@ -329,28 +338,52 @@ export default function ChatScreen() {
     ]);
   }
 
-  async function handleAI() {
+  async function handleAI(forcedQuestion?: string) {
     if (!isActive) {
       Alert.alert('', t('chatEmpty'));
       return;
     }
-    const question = inputText.trim() || `${t('aiDefaultQuestion')} "${eventTitle}"`;
+    const question = forcedQuestion ?? (inputText.trim() || `${t('aiDefaultQuestion')} "${eventTitle}"`);
     const moderation = validateChatMessage(question);
     if (!moderation.ok) {
       Alert.alert(t('moderationPanel'), moderation.message);
       return;
     }
     setInputText('');
-    if (inputText.trim()) sendMessage(inputText.trim());
+    if (!forcedQuestion && inputText.trim()) sendMessage(inputText.trim());
     setIsAITyping(true);
     try {
       const fallbackResponses = [t('aiFallback1'), t('aiFallback2'), t('aiFallback3')];
       const answer = await askOpenAI(question, eventTitle, eventId, fallbackResponses);
       if (!answer.saved) {
-        await sendMessage(answer.reply, true);
+        // Show locally instead of saving to Supabase to avoid RLS violation
+        const localAIMsg: Message = {
+          id: `ai-local-${Date.now()}`,
+          eventId: eventId,
+          userId: 'ai',
+          userName: 'Жолдас AI',
+          text: answer.reply,
+          timestamp: new Date(),
+          isAI: true,
+          reactions: {},
+        };
+        setMessages(prev => [...prev, localAIMsg]);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
       }
     } catch {
-      await sendMessage(t('aiUnavailable'), true);
+      // Show error locally instead of saving to Supabase
+      const errorAIMsg: Message = {
+        id: `ai-local-err-${Date.now()}`,
+        eventId: eventId,
+        userId: 'ai',
+        userName: 'Жолдас AI',
+        text: t('aiUnavailable'),
+        timestamp: new Date(),
+        isAI: true,
+        reactions: {},
+      };
+      setMessages(prev => [...prev, errorAIMsg]);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } finally {
       setIsAITyping(false);
     }
@@ -427,9 +460,9 @@ export default function ChatScreen() {
         <View style={[styles.eventBanner, { backgroundColor: theme.accentLight, borderBottomColor: theme.border }]}>
           <Text style={[styles.bannerText, { color: theme.accent }]}>
             {event.participantsCount} {t('participants')}
-            {!!event.hiddenParticipantsCount ? ` · ${t('empty')} ${event.hiddenParticipantsCount}` : ''}
+            {!!event.hiddenParticipantsCount ? ` · ${t('hiddenCount')} ${event.hiddenParticipantsCount}` : ''}
             {' · '}{event.datetime}
-            {!isActive ? ` · ${eventStatusLabels[eventStatus]}` : ''}
+            {!isActive ? ` · ${eventStatusText}` : ''}
           </Text>
           <View style={styles.bannerActions}>
             <TouchableOpacity
@@ -447,7 +480,7 @@ export default function ChatScreen() {
               ]}
               disabled={eventStatus !== 'finished'}
             >
-              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? t('reviewSubmitBtn') : t('statusFinished')}</Text>
+              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? t('reviewSubmitBtn') : t('reviewAvailableAfterFinish')}</Text>
             </TouchableOpacity>
             {joined && event?.createdBy !== user?.id && (
               <TouchableOpacity
@@ -516,7 +549,7 @@ export default function ChatScreen() {
             style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={t('chatPlaceholder')}
+            placeholder={isActive ? t('chatPlaceholder') + ' · @ai вопрос' : t('chatClosed')}
             placeholderTextColor={theme.subtext}
             multiline
             maxLength={500}
@@ -548,7 +581,7 @@ export default function ChatScreen() {
               },
               !isActive && styles.actionDisabled,
             ]}
-            onPress={handleAI}
+            onPress={() => handleAI()}
             disabled={!isActive}
             activeOpacity={0.75}
           >

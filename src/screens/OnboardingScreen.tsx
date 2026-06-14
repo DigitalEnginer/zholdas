@@ -1,7 +1,7 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, Dimensions, Animated, SafeAreaView,
+  ScrollView, Dimensions, Animated, SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -23,10 +23,10 @@ export default function OnboardingScreen({ onDone }: Props) {
   const haptics = useHaptics();
   const { t } = useLanguage();
   const [current, setCurrent] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const dotAnim = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
-  const slides = useMemo(() => [
+  const slides = [
     {
       emoji: '🗺️',
       title: t('onboardingSlide1Title'),
@@ -45,7 +45,7 @@ export default function OnboardingScreen({ onDone }: Props) {
       subtitle: t('onboardingSlide3Sub'),
       gradient: ['#0369A1', '#065F46'] as [string, string],
     },
-  ], [t]);
+  ];
 
   function animateDot(index: number) {
     dotAnim.forEach((anim, i) => {
@@ -75,7 +75,11 @@ export default function OnboardingScreen({ onDone }: Props) {
   function next() {
     haptics.light();
     if (current < slides.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: current + 1 });
+      const nextIndex = current + 1;
+      // Use scrollTo — works reliably on both native and web
+      scrollRef.current?.scrollTo({ x: width * nextIndex, animated: true });
+      setCurrent(nextIndex);
+      animateDot(nextIndex);
     } else {
       finish();
     }
@@ -85,17 +89,17 @@ export default function OnboardingScreen({ onDone }: Props) {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={slides}
+      <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
+        onMomentumScrollEnd={handleScroll}
         scrollEventThrottle={16}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => (
-          <LinearGradient colors={item.gradient} style={styles.slide}>
+        style={{ flex: 1 }}
+      >
+        {slides.map((item, index) => (
+          <LinearGradient key={index} colors={item.gradient} style={styles.slide}>
             <SafeAreaView style={styles.slideSafe}>
               <View style={styles.slideContent}>
                 <View style={styles.glassCard}>
@@ -106,8 +110,8 @@ export default function OnboardingScreen({ onDone }: Props) {
               </View>
             </SafeAreaView>
           </LinearGradient>
-        )}
-      />
+        ))}
+      </ScrollView>
 
       <View style={styles.bottom}>
         <View style={styles.dots}>
@@ -127,15 +131,15 @@ export default function OnboardingScreen({ onDone }: Props) {
 
         <TouchableOpacity style={styles.nextBtn} onPress={next} activeOpacity={0.9}>
           <Text style={styles.nextBtnText}>
-            {current === slides.length - 1 ? t('onboardingStart') : `${t('onboardingNext')} ->`}
+            {current === slides.length - 1 ? t('onboardingStart') : `${t('onboardingNext')} →`}
           </Text>
         </TouchableOpacity>
 
-        {current < slides.length - 1 && (
-          <TouchableOpacity onPress={finish} style={styles.skipBtn} activeOpacity={0.7}>
-            <Text style={styles.skipText}>{t('onboardingSkip')}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={finish} style={styles.skipBtn} activeOpacity={0.7}>
+          <Text style={styles.skipText}>
+            {current === slides.length - 1 ? '' : t('onboardingSkip')}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -194,6 +198,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   nextBtnText: { fontSize: 16, fontWeight: '800', color: '#0F172A', letterSpacing: 0.3 },
-  skipBtn: { paddingVertical: 10, paddingHorizontal: 20 },
+  skipBtn: { paddingVertical: 10, paddingHorizontal: 20, minHeight: 34 },
   skipText: { fontSize: 14, color: 'rgba(255, 255, 255, 0.7)', fontWeight: '600', letterSpacing: 0.5 },
 });

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type NotificationTab = 'all' | 'unread';
@@ -22,6 +23,7 @@ interface NotificationItem {
 export default function NotificationsScreen() {
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<Nav>();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,8 +102,8 @@ export default function NotificationsScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.tabs, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
             {[
-              { key: 'all', label: `Все (${items.length})` },
-              { key: 'unread', label: `Новые (${items.filter(item => !item.is_read).length})` },
+              { key: 'all', label: `${t('notificationsTabAll')} (${items.length})` },
+              { key: 'unread', label: `${t('notificationsNew')} (${items.filter(item => !item.is_read).length})` },
             ].map(tab => {
               const selected = activeTab === tab.key;
               return (
@@ -129,11 +131,11 @@ export default function NotificationsScreen() {
           </View>
           {items.length > 0 && (
             <TouchableOpacity style={[styles.readAll, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={markAllRead}>
-              <Text style={[styles.readAllText, { color: theme.accent }]}>Отметить все прочитанными</Text>
+              <Text style={[styles.readAllText, { color: theme.accent }]}>{t('notificationsMarkAllReadLong')}</Text>
             </TouchableOpacity>
           )}
           {(activeTab === 'unread' ? items.filter(item => !item.is_read) : items).length === 0 ? (
-            <Text style={[styles.empty, { color: theme.subtext }]}>Уведомлений пока нет</Text>
+            <Text style={[styles.empty, { color: theme.subtext }]}>{t('notificationsEmpty')}</Text>
           ) : (
             (activeTab === 'unread' ? items.filter(item => !item.is_read) : items).map(item => (
               <TouchableOpacity

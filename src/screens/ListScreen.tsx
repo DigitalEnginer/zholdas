@@ -6,28 +6,29 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventCategory, RootStackParamList } from '../types';
-import { categoryLabels, eventStatusLabels } from '../data/mockEvents';
 import EventCard from '../components/EventCard';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance, getDistanceKm } from '../hooks/useLocation';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
-const FILTERS: Array<{ key: 'all' | EventCategory; label: string }> = [
-  { key: 'all', label: 'Все' },
-  { key: 'mountains', label: 'Горы' },
-  { key: 'theatre', label: 'Театр' },
-  { key: 'restaurant', label: 'Ресторан' },
-  { key: 'sport', label: 'Спорт' },
-  { key: 'other', label: 'Другое' },
+const FILTERS: Array<{ key: 'all' | EventCategory; labelKey: string }> = [
+  { key: 'all', labelKey: 'filterAll' },
+  { key: 'mountains', labelKey: 'filterMountains' },
+  { key: 'theatre', labelKey: 'filterTheatre' },
+  { key: 'restaurant', labelKey: 'filterRestaurant' },
+  { key: 'sport', labelKey: 'filterSport' },
+  { key: 'other', labelKey: 'filterOther' },
 ];
 
 export default function ListScreen() {
   const navigation = useNavigation<Nav>();
   const { theme } = useTheme();
-  const { events, joinEvent, leaveEvent, isJoined } = useEvents();
+  const { t } = useLanguage();
+  const { events, joinEvent, isJoined } = useEvents();
   const { user } = useAuth();
   const userLocation = useLocation();
   const [activeFilter, setActiveFilter] = useState<'all' | EventCategory>('all');
@@ -69,14 +70,15 @@ export default function ListScreen() {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
     if (!isJoined(eventId, user.id) && (event.status ?? 'active') !== 'active') {
-      Alert.alert('', 'К этому ивенту уже нельзя присоединиться');
+      Alert.alert('', t('joinErrorClosed'));
       return;
     }
-    if (isJoined(eventId, user.id)) leaveEvent(eventId, user.id);
-    else joinEvent(eventId, user.id).catch(e => Alert.alert('Ошибка', e.message));
+    if (!isJoined(eventId, user.id)) {
+      joinEvent(eventId, user.id).catch(e => Alert.alert(t('error'), e.message));
+    }
   }
 
-  function handleOpenChat(eventId: string, eventTitle: string) {
+  function handleOpenDetails(eventId: string) {
     navigation.navigate('EventDetails', { eventId });
   }
 
@@ -85,15 +87,15 @@ export default function ListScreen() {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
-            <Text style={[styles.title, { color: theme.text }]}>События</Text>
-            <Text style={[styles.subtitle, { color: theme.subtext }]}>Быстро найди активность рядом</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('listTitle')}</Text>
+            <Text style={[styles.subtitle, { color: theme.subtext }]}>{t('listSubtitle')}</Text>
           </View>
           <TouchableOpacity
             style={[styles.createBtn, { backgroundColor: theme.accent }]}
             onPress={() => navigation.navigate('CreateEvent')}
             activeOpacity={0.8}
           >
-            <Text style={styles.createBtnText}>+ Создать</Text>
+            <Text style={styles.createBtnText}>+ {t('createEventBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -107,7 +109,7 @@ export default function ListScreen() {
                 color: theme.text,
               },
             ]}
-            placeholder="Поиск событий..."
+            placeholder={t('searchEventsPlaceholder')}
             placeholderTextColor={theme.subtext}
             value={search}
             onChangeText={setSearch}
@@ -130,7 +132,7 @@ export default function ListScreen() {
                 { color: showJoinedOnly ? '#FFFFFF' : theme.text },
               ]}
             >
-              Мои
+              {t('myShort')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -163,7 +165,7 @@ export default function ListScreen() {
                     { color: isActive ? '#FFFFFF' : theme.subtext },
                   ]}
                 >
-                  {filter.label}
+                  {t(filter.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -173,9 +175,9 @@ export default function ListScreen() {
 
       <View style={styles.quickFilters}>
         {[
-          { key: 'active', label: 'Активные', onPress: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active'), active: statusFilter === 'active' },
-          { key: 'available', label: 'Есть места', onPress: () => setAvailableOnly(v => !v), active: availableOnly },
-          { key: 'near', label: 'Рядом', onPress: () => setNearOnly(v => !v), active: nearOnly },
+          { key: 'active', label: t('quickActive'), onPress: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active'), active: statusFilter === 'active' },
+          { key: 'available', label: t('quickAvailable'), onPress: () => setAvailableOnly(v => !v), active: availableOnly },
+          { key: 'near', label: t('quickNear'), onPress: () => setNearOnly(v => !v), active: nearOnly },
         ].map(item => {
           const isActive = item.active;
           return (
@@ -214,35 +216,40 @@ export default function ListScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.quickText, { color: theme.subtext }]}>
-            {sortMode === 'near' ? 'Сначала рядом' : sortMode === 'popular' ? 'Популярные' : 'Новые'}
+            {sortMode === 'near' ? t('sortNear') : sortMode === 'popular' ? t('sortPopular') : t('sortNew')}
           </Text>
         </TouchableOpacity>
       </View>
 
       <Text style={[styles.count, { color: theme.subtext }]}>
-        {filtered.length} активност{filtered.length === 1 ? 'ь' : 'и'}
-        {statusFilter !== 'all' ? ` · ${eventStatusLabels[statusFilter]}` : ''}
+        {filtered.length} {t('activityCountLabel')}
+        {statusFilter !== 'all' ? ` · ${t(statusFilter === 'active' ? 'statusActive' : statusFilter === 'finished' ? 'statusFinished' : 'statusCancelled')}` : ''}
       </Text>
 
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <EventCard
-            event={item}
-            joined={user ? isJoined(item.id, user.id) : false}
-            distance={userLocation ? getDistance(userLocation, item.coordinate) : undefined}
-            onPress={() => handleOpenChat(item.id, item.title)}
-            onJoin={() => handleJoin(item.id)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const joined = user ? isJoined(item.id, user.id) : false;
+          return (
+            <EventCard
+              event={item}
+              joined={joined}
+              distance={userLocation ? getDistance(userLocation, item.coordinate) : undefined}
+              onPress={() => handleOpenDetails(item.id)}
+              onJoin={() => joined
+                ? navigation.navigate('Chat', { eventId: item.id, eventTitle: item.title })
+                : handleJoin(item.id)}
+            />
+          );
+        }}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={[styles.empty, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.emptyText, { color: theme.text }]}>Ничего не найдено</Text>
+            <Text style={[styles.emptyText, { color: theme.text }]}>{t('emptySearchTitle')}</Text>
             <Text style={[styles.emptyHint, { color: theme.subtext }]}>
-              Попробуйте убрать фильтр или поискать другое место
+              {t('emptySearchHint')}
             </Text>
           </View>
         }

@@ -8,7 +8,7 @@ import L from 'leaflet';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Event, EventCategory, RootStackParamList } from '../types';
-import { categoryEmojis, eventStatusLabels } from '../data/mockEvents';
+import { categoryEmojis } from '../data/mockEvents';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance, openRoute } from '../hooks/useLocation';
@@ -89,6 +89,9 @@ export default function MapScreen() {
       default: return key;
     }
   };
+  const getStatusLabel = (status: string) => (
+    status === 'finished' ? t('statusFinished') : status === 'cancelled' ? t('statusCancelled') : t('statusActive')
+  );
 
   const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
   const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
@@ -158,7 +161,7 @@ export default function MapScreen() {
                   </Text>
                   {(event.status ?? 'active') !== 'active' && (
                     <Text style={[styles.popupStatus, { color: theme.danger }]}>
-                      {eventStatusLabels[event.status ?? 'active']}
+                      {getStatusLabel(event.status ?? 'active')}
                     </Text>
                   )}
                   <View style={styles.popupActions}>
@@ -177,18 +180,26 @@ export default function MapScreen() {
                     >
                       <Text style={[styles.routeButtonText, { color: theme.text }]}>{t('routeBtn')}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.joinButton,
-                        { borderColor: theme.accent, backgroundColor: joined ? theme.accent : 'transparent' },
-                      ]}
-                      onPress={() => handleJoin(event).catch(e => Alert.alert(t('error'), e.message))}
-                      disabled={!user || (!joined && (event.status ?? 'active') !== 'active')}
-                    >
-                      <Text style={[styles.joinButtonText, { color: joined ? '#FFFFFF' : theme.accent }]}>
-                        {joined ? t('joined') : t('joinBtn')}
-                      </Text>
-                    </TouchableOpacity>
+                    {joined ? (
+                      <TouchableOpacity
+                        style={[styles.joinButton, { borderColor: theme.accent, backgroundColor: theme.accent }]}
+                        onPress={() => navigation.navigate('Chat', { eventId: event.id, eventTitle: event.title })}
+                      >
+                        <Text style={[styles.joinButtonText, { color: '#FFFFFF' }]}>
+                          💬 {t('chatShort')}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.joinButton, { borderColor: theme.accent, backgroundColor: 'transparent' }]}
+                        onPress={() => handleJoin(event).catch(e => Alert.alert(t('error'), e.message))}
+                        disabled={!user || (event.status ?? 'active') !== 'active'}
+                      >
+                        <Text style={[styles.joinButtonText, { color: theme.accent }]}>
+                          {t('joinBtn')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </Popup>

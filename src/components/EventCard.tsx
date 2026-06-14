@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Event } from '../types';
-import { categoryEmojis, categoryLabels, eventStatusColors, eventStatusLabels } from '../data/mockEvents';
+import { eventStatusColors } from '../data/mockEvents';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   event: Event;
@@ -14,11 +15,13 @@ interface Props {
 
 export default function EventCard({ event, joined, distance, onPress, onJoin }: Props) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const spotsLeft = event.maxParticipants - event.participantsCount;
   const isFull = spotsLeft <= 0;
   const status = event.status ?? 'active';
   const isActive = status === 'active';
   const statusColor = eventStatusColors[status];
+  const statusText = t(status === 'finished' ? 'statusFinished' : status === 'cancelled' ? 'statusCancelled' : 'statusActive');
 
   return (
     <TouchableOpacity
@@ -33,19 +36,19 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
       <View style={styles.header}>
         <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
           <Text style={[styles.categoryText, { color: theme.accentText }]}>
-            {categoryLabels[event.category]}
+            {t(`filter${event.category === 'mountains' ? 'Mountains' : event.category === 'theatre' ? 'Theatre' : event.category === 'restaurant' ? 'Restaurant' : event.category === 'sport' ? 'Sport' : 'Other'}`)}
           </Text>
         </View>
         <View style={styles.metaRight}>
           {!isActive && (
             <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
               <Text style={[styles.statusText, { color: statusColor }]}>
-                {eventStatusLabels[status]}
+                {statusText}
               </Text>
             </View>
           )}
           {distance ? (
-            <Text style={[styles.distance, { color: theme.accent }]}>{distance} от вас</Text>
+            <Text style={[styles.distance, { color: theme.accent }]}>{distance} {t('fromYou')}</Text>
           ) : null}
           <Text style={[styles.datetime, { color: theme.subtext }]}>{event.datetime}</Text>
         </View>
@@ -71,18 +74,18 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
       <View style={styles.footer}>
         <View style={styles.participants}>
           <Text style={[styles.participantsText, { color: theme.subtext }]}>
-            Участники:{' '}
+            {t('participants')}:{' '}
             <Text style={[styles.participantsCountText, { color: theme.text }]}>
               {event.participantsCount}/{event.maxParticipants}
             </Text>
           </Text>
           {spotsLeft <= 3 && spotsLeft > 0 && (
-            <Text style={[styles.spotsLeft, { color: theme.warning }]}> · Осталось {spotsLeft}</Text>
+            <Text style={[styles.spotsLeft, { color: theme.warning }]}> · {t('spotsLeft')} {spotsLeft}</Text>
           )}
-          {isFull && <Text style={[styles.full, { color: theme.danger }]}> · Мест нет</Text>}
+          {isFull && <Text style={[styles.full, { color: theme.danger }]}> · {t('noSpots')}</Text>}
           {!!event.hiddenParticipantsCount && (
             <Text style={[styles.hidden, { color: theme.subtext }]}>
-              · скрыто {event.hiddenParticipantsCount}
+              · {t('hiddenCount')} {event.hiddenParticipantsCount}
             </Text>
           )}
         </View>
@@ -103,14 +106,14 @@ export default function EventCard({ event, joined, distance, onPress, onJoin }: 
               (!isActive || isFull) && !joined && { color: theme.subtext },
             ]}
           >
-            {joined ? 'В группе' : !isActive ? eventStatusLabels[status] : isFull ? 'Заполнено' : 'Войти'}
+            {joined ? t('openChatAction') : !isActive ? statusText : isFull ? t('filled') : t('enterBtn')}
           </Text>
         </TouchableOpacity>
       </View>
       {joined && (
         <View style={[styles.chatHint, { backgroundColor: theme.inputBg, borderTopColor: theme.border }]}>
           <Text style={[styles.chatHintText, { color: theme.accent }]}>
-            Открыть чат группы →
+            {t('openGroupChatHint')}
           </Text>
         </View>
       )}

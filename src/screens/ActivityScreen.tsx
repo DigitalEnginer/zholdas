@@ -110,7 +110,7 @@ export default function ActivityScreen() {
   const [feed, setFeed] = useState<ActivityItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [friendsOnly, setFriendsOnly] = useState(false);
-  const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [friendIds, setFriendIds] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -119,20 +119,21 @@ export default function ActivityScreen() {
   );
 
   useEffect(() => {
-    if (user) loadFollowing();
+    if (user) loadFriends();
   }, [user]);
 
   useEffect(() => {
     loadFeed();
-  }, [followingIds, friendsOnly]);
+  }, [friendIds, friendsOnly]);
 
-  async function loadFollowing() {
+  async function loadFriends() {
     if (!user) return;
     const { data } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', user.id);
-    setFollowingIds((data ?? []).map((r: any) => r.following_id));
+      .from('friend_requests')
+      .select('from_user_id, to_user_id')
+      .eq('status', 'accepted')
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`);
+    setFriendIds((data ?? []).map((r: any) => r.from_user_id === user.id ? r.to_user_id : r.from_user_id));
   }
 
   const loadFeed = useCallback(async () => {
@@ -185,18 +186,18 @@ export default function ActivityScreen() {
     let all = [...joinItems, ...createItems]
       .filter(item => item.eventTitle);
 
-    if (friendsOnly && followingIds.length > 0) {
-      all = all.filter(item => followingIds.includes(item.userId));
+    if (friendsOnly) {
+      all = all.filter(item => friendIds.includes(item.userId));
     }
 
     all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     setFeed(all);
     setRefreshing(false);
-  }, [friendsOnly, followingIds]);
+  }, [friendsOnly, friendIds]);
 
   function refresh() {
     setRefreshing(true);
-    if (user) loadFollowing();
+    if (user) loadFriends();
     loadFeed();
   }
 

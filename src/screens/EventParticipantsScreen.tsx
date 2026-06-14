@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import { useLanguage } from '../context/LanguageContext';
 
 type ParticipantsRoute = RouteProp<RootStackParamList, 'EventParticipants'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -28,6 +29,7 @@ export default function EventParticipantsScreen() {
   const { eventId } = route.params;
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatorId, setCreatorId] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function EventParticipantsScreen() {
     setCreatorId(eventData?.created_by ?? null);
 
     if (error) {
-      Alert.alert('Не удалось загрузить участников', error.message);
+      Alert.alert(t('participantsLoadError'), error.message);
       setLoading(false);
       return;
     }
@@ -67,7 +69,7 @@ export default function EventParticipantsScreen() {
       .filter((row: any) => canModerate || !row.profiles?.is_banned)
       .map((row: any) => ({
         id: row.user_id,
-        name: row.profiles?.name ?? 'Пользователь',
+        name: row.profiles?.name ?? t('userLabel'),
         avatar: row.profiles?.avatar ?? '👤',
         rating: Number(row.profiles?.rating ?? 0),
         isBanned: !!row.profiles?.is_banned,
@@ -86,10 +88,10 @@ export default function EventParticipantsScreen() {
   async function removeParticipant(participant: Participant) {
     if (!user || participant.id === user.id) return;
 
-    Alert.alert('Удалить участника?', participant.name, [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t('removeParticipantTitle'), participant.name, [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Удалить',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase
@@ -99,7 +101,7 @@ export default function EventParticipantsScreen() {
             .eq('user_id', participant.id);
 
           if (error) {
-            Alert.alert('Не удалось удалить', error.message);
+            Alert.alert(t('removeError'), error.message);
             return;
           }
 
@@ -116,7 +118,7 @@ export default function EventParticipantsScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {participants.length === 0 ? (
-            <Text style={[styles.empty, { color: theme.subtext }]}>Участников пока нет</Text>
+            <Text style={[styles.empty, { color: theme.subtext }]}>{t('participantsEmpty')}</Text>
           ) : (
             <View style={[styles.listContainer, { backgroundColor: theme.card, borderColor: theme.border }, getShadowStyle()]}>
               {participants.map((participant, index) => {
@@ -137,23 +139,23 @@ export default function EventParticipantsScreen() {
                         <Text style={[styles.name, { color: theme.text }]}>{participant.name}</Text>
                         {participant.id === creatorId && (
                           <View style={[styles.organizerBadge, { backgroundColor: theme.accentLight }]}>
-                            <Text style={[styles.organizerBadgeText, { color: theme.accent }]}>ОРГАНИЗАТОР</Text>
+                            <Text style={[styles.organizerBadgeText, { color: theme.accent }]}>{t('creatorBadge')}</Text>
                           </View>
                         )}
                         {participant.isBanned && (
                           <View style={[styles.bannedBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE4E2' }]}>
-                            <Text style={[styles.bannedBadgeText, { color: theme.danger }]}>Забанен</Text>
+                            <Text style={[styles.bannedBadgeText, { color: theme.danger }]}>{t('bannedLabel')}</Text>
                           </View>
                         )}
                       </View>
                       <Text style={[styles.meta, { color: theme.subtext }]}>
                         {participant.isBanned
-                          ? 'Скрыт для обычных пользователей'
+                          ? t('hiddenForUsers')
                           : participant.id === user?.id
-                            ? 'Это вы'
+                            ? t('thisIsYou')
                             : participant.rating > 0
-                              ? `Рейтинг ${participant.rating.toFixed(1)}`
-                              : 'Профиль участника'}
+                              ? `${t('ratingLabel')} ${participant.rating.toFixed(1)}`
+                              : t('participantProfile')}
                       </Text>
                     </View>
                     <Text style={[styles.arrow, { color: theme.subtext }]}>›</Text>
@@ -168,7 +170,7 @@ export default function EventParticipantsScreen() {
                         ]}
                         onPress={() => removeParticipant(participant)}
                       >
-                        <Text style={[styles.removeText, { color: theme.danger }]}>Удалить</Text>
+                        <Text style={[styles.removeText, { color: theme.danger }]}>{t('delete')}</Text>
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
