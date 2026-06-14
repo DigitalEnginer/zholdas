@@ -18,6 +18,7 @@ interface ProfileData {
   name: string;
   avatar: string;
   bio: string;
+  role: 'user' | 'moderator' | 'admin';
   rating: number;
   reviewsCount: number;
   eventsJoined: number;
@@ -57,6 +58,7 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isBanned, setIsBanned] = useState(false);
   const [banLoading, setBanLoading] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [friendStatus, setFriendStatus] = useState<'none' | 'outgoing' | 'incoming' | 'accepted'>('none');
   const [isBlocked, setIsBlocked] = useState(false);
 
@@ -105,6 +107,7 @@ export default function UserProfileScreen() {
         name: profileData.name ?? userName,
         avatar: profileData.avatar ?? userAvatar,
         bio: profileData.bio ?? '',
+        role: profileData.role ?? 'user',
         rating: Number(profileData.rating) ?? 0,
         reviewsCount: profileData.reviews_count ?? 0,
         eventsJoined: profileData.events_joined ?? 0,
@@ -271,14 +274,28 @@ export default function UserProfileScreen() {
     if (!currentUser || isOwnProfile) return;
 
     const reportWithReason = async (reason: string) => {
+      setReportLoading(true);
       const { error } = await supabase.from('reports').insert({
         reporter_id: currentUser.id,
         reported_user_id: userId,
         reason,
+        status: 'pending',
+        details: [
+          'type=profile',
+          `reported_user_name=${displayName}`,
+          `reporter_name=${currentUser.name}`,
+        ].join('\n'),
       });
+      setReportLoading(false);
 
       if (error) {
-        Alert.alert(t('reportSendError'), error.message);
+        const isDuplicateOrRateLimited = error.message.toLowerCase().includes('row-level security')
+          || error.message.toLowerCase().includes('violates')
+          || error.message.toLowerCase().includes('duplicate');
+        Alert.alert(
+          t('reportSendError'),
+          isDuplicateOrRateLimited ? t('reportAlreadySentText') : error.message,
+        );
         return;
       }
 
@@ -320,6 +337,10 @@ export default function UserProfileScreen() {
   const displayRating = profile?.rating ?? 0;
   const displayName = profile?.name ?? userName;
   const displayAvatar = profile?.avatar ?? userAvatar;
+  const canModerateTarget = !!currentUser
+    && !isOwnProfile
+    && (currentUser.role === 'admin' || (currentUser.role === 'moderator' && (profile?.role ?? 'user') === 'user'));
+  const shouldShowBlockAction = !isOwnProfile && !!currentUser && (friendStatus === 'accepted' || isBlocked);
 
   if (loading) {
     return (
@@ -402,7 +423,7 @@ export default function UserProfileScreen() {
 
             {/* Secondary Actions */}
             <View style={styles.secondaryActionsRow}>
-              {!isOwnProfile && currentUser && (
+              {shouldShowBlockAction && (
                 <TouchableOpacity
                   style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
                   onPress={toggleBlock}
@@ -418,13 +439,14 @@ export default function UserProfileScreen() {
                 <TouchableOpacity
                   style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
                   onPress={reportUser}
+                  disabled={reportLoading}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.secondaryActionBtnText, { color: theme.subtext }]}>{t('complaint')}</Text>
                 </TouchableOpacity>
               )}
 
-              {!isOwnProfile && canModerate && (
+              {canModerateTarget && (
                 <TouchableOpacity
                   style={[
                     styles.secondaryActionBtn,
