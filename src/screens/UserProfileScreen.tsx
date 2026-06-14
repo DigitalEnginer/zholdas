@@ -354,10 +354,18 @@ export default function UserProfileScreen() {
   const shadowOpacity = isDark ? 0.35 : 0.04;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? theme.bg : '#F5F6FA' }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <View style={[styles.avatar, { backgroundColor: theme.accentLight, borderColor: theme.accent }]}>
+        <View style={[
+          styles.heroCard,
+          {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            shadowColor: shadowHex,
+            shadowOpacity: isDark ? 0.28 : 0.07,
+          },
+        ]}>
+          <View style={[styles.avatarRing, { backgroundColor: theme.accentLight, borderColor: theme.accent }]}>
             <AvatarImage
               value={displayAvatar}
               size={90}
@@ -388,7 +396,7 @@ export default function UserProfileScreen() {
                   style={[
                     styles.primaryActionBtn,
                     friendStatus === 'accepted'
-                      ? { backgroundColor: theme.card, borderColor: theme.border }
+                      ? { backgroundColor: theme.inputBg, borderColor: theme.border }
                       : { backgroundColor: theme.accent, borderColor: theme.accent }
                   ]}
                   onPress={
@@ -425,7 +433,7 @@ export default function UserProfileScreen() {
             <View style={styles.secondaryActionsRow}>
               {shouldShowBlockAction && (
                 <TouchableOpacity
-                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
                   onPress={toggleBlock}
                   activeOpacity={0.8}
                 >
@@ -437,7 +445,7 @@ export default function UserProfileScreen() {
 
               {!isOwnProfile && currentUser && (
                 <TouchableOpacity
-                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                  style={[styles.secondaryActionBtn, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
                   onPress={reportUser}
                   disabled={reportLoading}
                   activeOpacity={0.8}
@@ -465,23 +473,27 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {/* Stats Row Redesigned into Grid Tiles */}
-        <View style={styles.statsRowContainer}>
+        <View
+          style={[
+            styles.statsCard,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              shadowColor: shadowHex,
+              shadowOpacity,
+            },
+          ]}
+        >
           {[
             { label: t('eventsLabel'), value: profile?.eventsJoined ?? 0 },
             { label: t('friendsLabel'), value: profile?.friendsMade ?? 0 },
             { label: t('reviewsLabel'), value: profile?.reviewsCount ?? 0 },
-          ].map((stat) => (
+          ].map((stat, index) => (
             <View
               key={stat.label}
               style={[
                 styles.statTile,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                  shadowColor: shadowHex,
-                  shadowOpacity,
-                }
+                index > 0 && { borderLeftColor: theme.border, borderLeftWidth: 1 },
               ]}
             >
               <Text style={[styles.statValue, { color: theme.accent }]}>{stat.value}</Text>
@@ -561,87 +573,125 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { width: '100%', maxWidth: 860, alignSelf: 'center', paddingBottom: 40 },
-  hero: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 16 },
-  avatar: {
-    width: 90, height: 90, borderRadius: 45,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14, borderWidth: 3,
+  content: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 34,
   },
-  name: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  bio: { fontSize: 14, marginBottom: 12, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 16 },
+  heroCard: {
+    alignItems: 'center',
+    paddingTop: 28,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    borderRadius: 30,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 14 },
+    shadowRadius: 28,
+    elevation: 4,
+  },
+  avatarRing: {
+    width: 102,
+    height: 102,
+    borderRadius: 51,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 3,
+  },
+  name: { fontSize: 26, fontWeight: '900', marginBottom: 4, letterSpacing: 0 },
+  bio: { fontSize: 15, marginBottom: 14, textAlign: 'center', paddingHorizontal: 18, lineHeight: 21 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 18 },
   star: { fontSize: 20, color: '#DDD' },
   starFilled: { color: '#F5A623' },
   ratingVal: { fontSize: 16, fontWeight: '700', marginLeft: 6 },
-  actionSection: { width: '100%', maxWidth: 420, gap: 10, marginTop: 6, paddingHorizontal: 16 },
+  actionSection: { width: '100%', gap: 10, marginTop: 4 },
   mainActionsRow: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
   primaryActionBtn: {
-    flex: 1, borderWidth: 1.5, borderRadius: 16,
-    paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 999,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  primaryActionBtnText: { fontSize: 14, fontWeight: '700' },
+  primaryActionBtnText: { fontSize: 16, fontWeight: '800' },
   secondaryActionsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 4 },
   secondaryActionBtn: {
-    flex: 1, borderWidth: 1.5, borderRadius: 14,
-    paddingVertical: 9, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 999,
+    minHeight: 42,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondaryActionBtnText: { fontSize: 12, fontWeight: '700' },
-  statsRowContainer: {
+  secondaryActionBtnText: { fontSize: 13, fontWeight: '800' },
+  statsCard: {
     flexDirection: 'row',
-    gap: 12,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    marginTop: 8,
+    marginTop: 14,
+    marginBottom: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 2,
   },
   statTile: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 2,
+    paddingHorizontal: 4,
   },
-  statValue: { fontSize: 22, fontWeight: '800' },
-  statLabel: { fontSize: 11, marginTop: 2 },
+  statValue: { fontSize: 24, fontWeight: '900' },
+  statLabel: { fontSize: 12, marginTop: 4, fontWeight: '600' },
   section: {
-    marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: 'hidden',
+    marginBottom: 14,
+    borderRadius: 22,
+    overflow: 'hidden',
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
     elevation: 2,
   },
   sectionTitle: {
-    fontSize: 13, fontWeight: '700', textTransform: 'uppercase',
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
   eventRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1,
+    paddingHorizontal: 18, paddingVertical: 14, borderTopWidth: 1,
   },
-  eventIcon: { fontSize: 22 },
-  eventTitle: { fontSize: 14, fontWeight: '600' },
-  eventTime: { fontSize: 12, marginTop: 2 },
-  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
+  eventIcon: { fontSize: 24 },
+  eventTitle: { fontSize: 15, fontWeight: '800' },
+  eventTime: { fontSize: 13, marginTop: 3 },
+  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  badgeText: { fontSize: 12, fontWeight: '800' },
   reviewRow: {
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
-    paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1,
+    paddingHorizontal: 18, paddingVertical: 14, borderTopWidth: 1,
   },
   reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  reviewFrom: { fontSize: 14, fontWeight: '700' },
+  reviewFrom: { fontSize: 15, fontWeight: '800' },
   reviewStars: { fontSize: 12, color: '#F5A623' },
   reviewText: { fontSize: 13, lineHeight: 18 },
   emptyReviews: {
-    margin: 16,
+    margin: 18,
     marginTop: 8,
-    padding: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 14,
+    borderRadius: 18,
     alignItems: 'center',
   },
   emptyReviewsIcon: { fontSize: 24, color: '#98A2B3', marginBottom: 8 },
