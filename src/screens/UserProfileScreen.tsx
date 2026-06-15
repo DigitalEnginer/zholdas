@@ -61,6 +61,7 @@ export default function UserProfileScreen() {
   const [reportLoading, setReportLoading] = useState(false);
   const [friendStatus, setFriendStatus] = useState<'none' | 'outgoing' | 'incoming' | 'accepted'>('none');
   const [isBlocked, setIsBlocked] = useState(false);
+  const [reasonSheet, setReasonSheet] = useState<'ban' | 'report' | null>(null);
 
   const isOwnProfile = currentUser?.id === userId;
   const canModerate = currentUser?.role === 'moderator' || currentUser?.role === 'admin';
@@ -243,72 +244,64 @@ export default function UserProfileScreen() {
 
   async function banUser() {
     if (!currentUser || !canModerate || isOwnProfile) return;
+    setReasonSheet('ban');
+  }
 
-    const banWithReason = async (reason: string) => {
-      setBanLoading(true);
-      const { error } = await supabase.from('user_bans').insert({
-        user_id: userId,
-        banned_by: currentUser.id,
-        reason,
-      });
-      setBanLoading(false);
+  async function banWithReason(reason: string) {
+    if (!currentUser || !canModerate || isOwnProfile) return;
 
-      if (error) {
-        Alert.alert(t('banError'), error.message);
-        return;
-      }
+    setReasonSheet(null);
+    setBanLoading(true);
+    const { error } = await supabase.from('user_bans').insert({
+      user_id: userId,
+      banned_by: currentUser.id,
+      reason,
+    });
+    setBanLoading(false);
 
-      setIsBanned(true);
-    };
+    if (error) {
+      Alert.alert(t('banError'), error.message);
+      return;
+    }
 
-    Alert.alert(t('banReasonTitle'), `${displayName} ${t('banUserText')}`, [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('spamReason'), style: 'destructive', onPress: () => banWithReason(t('spamReason')) },
-      { text: t('insultsReason'), style: 'destructive', onPress: () => banWithReason(t('insultsReason')) },
-      { text: t('unsafeReason'), style: 'destructive', onPress: () => banWithReason(t('unsafeReason')) },
-      { text: t('rulesReason'), style: 'destructive', onPress: () => banWithReason(t('rulesReason')) },
-    ]);
+    setIsBanned(true);
   }
 
   async function reportUser() {
     if (!currentUser || isOwnProfile) return;
+    setReasonSheet('report');
+  }
 
-    const reportWithReason = async (reason: string) => {
-      setReportLoading(true);
-      const { error } = await supabase.from('reports').insert({
-        reporter_id: currentUser.id,
-        reported_user_id: userId,
-        reason,
-        status: 'pending',
-        details: [
-          'type=profile',
-          `reported_user_name=${displayName}`,
-          `reporter_name=${currentUser.name}`,
-        ].join('\n'),
-      });
-      setReportLoading(false);
+  async function reportWithReason(reason: string) {
+    if (!currentUser || isOwnProfile) return;
 
-      if (error) {
-        const isDuplicateOrRateLimited = error.message.toLowerCase().includes('row-level security')
-          || error.message.toLowerCase().includes('violates')
-          || error.message.toLowerCase().includes('duplicate');
-        Alert.alert(
-          t('reportSendError'),
-          isDuplicateOrRateLimited ? t('reportAlreadySentText') : error.message,
-        );
-        return;
-      }
+    setReasonSheet(null);
+    setReportLoading(true);
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: currentUser.id,
+      reported_user_id: userId,
+      reason,
+      status: 'pending',
+      details: [
+        'type=profile',
+        `reported_user_name=${displayName}`,
+        `reporter_name=${currentUser.name}`,
+      ].join('\n'),
+    });
+    setReportLoading(false);
 
-      Alert.alert(t('reportSentTitle'), t('reportSentText'));
-    };
+    if (error) {
+      const isDuplicateOrRateLimited = error.message.toLowerCase().includes('row-level security')
+        || error.message.toLowerCase().includes('violates')
+        || error.message.toLowerCase().includes('duplicate');
+      Alert.alert(
+        t('reportSendError'),
+        isDuplicateOrRateLimited ? t('reportAlreadySentText') : error.message,
+      );
+      return;
+    }
 
-    Alert.alert(t('reportUserTitle'), `${t('reportUserPrompt')} ${displayName}?`, [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('spamReason'), onPress: () => reportWithReason(t('spamReason')) },
-      { text: t('insultsReason'), onPress: () => reportWithReason(t('insultsReason')) },
-      { text: t('unsafeReason'), onPress: () => reportWithReason(t('unsafeReason')) },
-      { text: t('otherViolationReason'), onPress: () => reportWithReason(t('otherViolationReason')) },
-    ]);
+    Alert.alert(t('reportSentTitle'), t('reportSentText'));
   }
 
   async function unbanUser() {
@@ -341,6 +334,13 @@ export default function UserProfileScreen() {
     && !isOwnProfile
     && (currentUser.role === 'admin' || (currentUser.role === 'moderator' && (profile?.role ?? 'user') === 'user'));
   const shouldShowBlockAction = !isOwnProfile && !!currentUser && (friendStatus === 'accepted' || isBlocked);
+  const reasonOptions = reasonSheet === 'ban'
+    ? [t('spamReason'), t('insultsReason'), t('unsafeReason'), t('rulesReason')]
+    : [t('spamReason'), t('insultsReason'), t('unsafeReason'), t('otherViolationReason')];
+  const reasonTitle = reasonSheet === 'ban' ? t('banReasonTitle') : t('reportUserTitle');
+  const reasonSubtitle = reasonSheet === 'ban'
+    ? `${displayName} ${t('banUserText')}`
+    : `${t('reportUserPrompt')} ${displayName}?`;
 
   if (loading) {
     return (
@@ -567,6 +567,54 @@ export default function UserProfileScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {reasonSheet !== null && (
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => setReasonSheet(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.reasonSheet, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <Text style={[styles.reasonTitle, { color: theme.text }]}>{reasonTitle}</Text>
+            <Text style={[styles.reasonSubtitle, { color: theme.subtext }]}>{reasonSubtitle}</Text>
+
+            {reasonOptions.map(reason => (
+              <TouchableOpacity
+                key={reason}
+                style={[styles.reasonOption, { borderTopColor: theme.border }]}
+                onPress={() => {
+                  if (reasonSheet === 'ban') {
+                    banWithReason(reason);
+                  } else {
+                    reportWithReason(reason);
+                  }
+                }}
+                activeOpacity={0.75}
+              >
+                <Text
+                  style={[
+                    styles.reasonOptionText,
+                    { color: reasonSheet === 'ban' ? theme.danger : theme.text },
+                  ]}
+                >
+                  {reason}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={[styles.reasonCancel, { backgroundColor: theme.inputBg }]}
+              onPress={() => setReasonSheet(null)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.reasonCancelText, { color: theme.subtext }]}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -696,4 +744,65 @@ const styles = StyleSheet.create({
   },
   emptyReviewsIcon: { fontSize: 24, color: '#98A2B3', marginBottom: 8 },
   emptyReviewsText: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  sheetOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    padding: 14,
+    zIndex: 100,
+    elevation: 100,
+  },
+  reasonSheet: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    borderRadius: 28,
+    borderWidth: 1,
+    paddingTop: 18,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  reasonTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  reasonSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  reasonOption: {
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
+  reasonOptionText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  reasonCancel: {
+    minHeight: 50,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  reasonCancelText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
 });
