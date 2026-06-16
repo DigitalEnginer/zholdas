@@ -10,7 +10,7 @@ import { categoryEmojis, eventStatusColors } from '../data/mockEvents';
 import EventMarker from '../components/EventMarker';
 import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
-import { useLocation, getDistance } from '../hooks/useLocation';
+import { useLocation, getDistance, openRoute } from '../hooks/useLocation';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -42,16 +42,12 @@ export default function MapScreen() {
   const userLocation = useLocation();
   const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
-  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
   const [region, setRegion] = useState<Region>(ALMATY_REGION);
   const slideAnim = useRef(new Animated.Value(320)).current;
 
   const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
   const selectedEvent = filteredEvents.find(e => e.id === selectedId) ?? null;
-  const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
 
   function openSheet(id: string) {
     setSelectedId(id);
@@ -59,86 +55,18 @@ export default function MapScreen() {
   }
 
   function closeSheet() {
-    Animated.timing(slideAnim, { toValue: 320, duration: 220, useNativeDriver: true }).start(() => setSelectedId(null));
+    Animated.timing(slideAnim, { toValue: 320, duration: 180, useNativeDriver: true }).start(() => setSelectedId(null));
   }
 
   function handleJoin() {
     if (!selectedEvent || !user) return;
-    if (!isJoined(selectedEvent.id, user.id) && (selectedEvent.status ?? 'active') !== 'active') {
-      Alert.alert('', t('joinErrorClosed'));
-      return;
-    }
     if (isJoined(selectedEvent.id, user.id)) leaveEvent(selectedEvent.id, user.id);
     else joinEvent(selectedEvent.id, user.id).catch(e => Alert.alert(t('error'), e.message));
   }
 
-  function formatRouteDistance(meters: number) {
-    if (meters < 1000) return `${Math.round(meters)} ${t('metersUnit')}`;
-    return `${(meters / 1000).toFixed(1)} ${t('kmUnit')}`;
-  }
-
-  function formatRouteDuration(seconds: number) {
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    if (minutes < 60) return `${minutes} ${t('minUnit')}`;
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return rest ? `${hours} ${t('hourUnit')} ${rest} ${t('minUnit')}` : `${hours} ${t('hourUnit')}`;
-  }
-
   async function showRoute() {
     if (!selectedEvent) return;
-    if (!userLocation) {
-      Alert.alert('', t('allowLocationForRoute'));
-      return;
-    }
-
-    setRouteTargetId(selectedEvent.id);
-    setRouteInfo(null);
-
-    try {
-      const start = `${userLocation.longitude},${userLocation.latitude}`;
-      const end = `${selectedEvent.coordinate.longitude},${selectedEvent.coordinate.latitude}`;
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`
-      );
-
-      if (!response.ok) throw new Error('Route service unavailable');
-
-      const data = await response.json();
-      const route = data.routes?.[0];
-      const coordinates = route?.geometry?.coordinates;
-
-      if (!Array.isArray(coordinates) || coordinates.length === 0) {
-        throw new Error('Route not found');
-      }
-
-      const nextCoordinates = coordinates.map(([longitude, latitude]: [number, number]) => ({
-        latitude,
-        longitude,
-      }));
-
-      setRouteCoordinates(nextCoordinates);
-      setRouteInfo({
-        distance: formatRouteDistance(route.distance ?? 0),
-        duration: formatRouteDuration(route.duration ?? 0),
-      });
-
-      mapRef.current?.fitToCoordinates(nextCoordinates, {
-        edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
-        animated: true,
-      });
-    } catch {
-      const fallbackCoordinates = [userLocation, selectedEvent.coordinate];
-      setRouteCoordinates(fallbackCoordinates);
-      setRouteInfo({
-        distance: getDistance(userLocation, selectedEvent.coordinate),
-        duration: t('approximately'),
-      });
-      mapRef.current?.fitToCoordinates(fallbackCoordinates, {
-        edgePadding: { top: 180, right: 70, bottom: 360, left: 70 },
-        animated: true,
-      });
-    }
+    openRoute(selectedEvent.coordinate, selectedEvent.title, userLocation);
   }
 
   function zoom(multiplier: number) {
@@ -168,13 +96,6 @@ export default function MapScreen() {
               <View style={styles.userMarkerCore} />
             </View>
           </Marker>
-        )}
-        {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeColor="#2E9E5D"
-            strokeWidth={5}
-          />
         )}
         {filteredEvents.map(event => (
           <EventMarker
@@ -219,30 +140,7 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
-      {routeTarget && (
-        <View style={styles.routeBanner}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.routeBannerTitle}>{t('routeShown')}</Text>
-            <Text style={styles.routeBannerText} numberOfLines={1}>
-              {routeInfo
-                ? `${routeInfo.distance} · ${routeInfo.duration} ${t('routeTo')} "${routeTarget.title}"`
-                : userLocation
-                  ? `${getDistance(userLocation, routeTarget.coordinate)} ${t('routeTo')} "${routeTarget.title}"`
-                  : routeTarget.title}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.routeClose}
-            onPress={() => {
-              setRouteTargetId(null);
-              setRouteCoordinates([]);
-              setRouteInfo(null);
-            }}
-          >
-            <Text style={styles.routeCloseText}>×</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
 
       <TouchableOpacity
         style={styles.createFab}

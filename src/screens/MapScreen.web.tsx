@@ -76,7 +76,6 @@ export default function MapScreen() {
   const userLocation = useLocation();
   const { t } = useLanguage();
   const [mapFilter, setMapFilter] = useState<'all' | EventCategory>('all');
-  const [routeTargetId, setRouteTargetId] = useState<string | null>(null);
 
   const getCategoryLabel = (key: 'all' | EventCategory) => {
     switch (key) {
@@ -95,14 +94,6 @@ export default function MapScreen() {
 
   const filteredEvents = (mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter))
     .filter(e => (e.status ?? 'active') === 'active');
-  const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
-  const routeLine = useMemo<Array<[number, number]>>(() => {
-    if (!userLocation || !routeTarget) return [];
-    return [
-      [userLocation.latitude, userLocation.longitude],
-      [routeTarget.coordinate.latitude, routeTarget.coordinate.longitude],
-    ];
-  }, [routeTarget?.id, userLocation?.latitude, userLocation?.longitude]);
 
   async function handleJoin(event: Event) {
     if (!user) return;
@@ -127,12 +118,6 @@ export default function MapScreen() {
             radius={8}
             pathOptions={{ color: theme.accent, fillColor: theme.accent, fillOpacity: 0.8 }}
           />
-        )}
-        {routeLine.length > 0 && (
-          <>
-            <Polyline positions={routeLine} pathOptions={{ color: theme.success, weight: 5 }} />
-            <FitRoute route={routeLine} />
-          </>
         )}
         {filteredEvents.map(event => {
           const joined = user ? isJoined(event.id, user.id) : false;
@@ -175,7 +160,6 @@ export default function MapScreen() {
                     <TouchableOpacity
                       style={[styles.routeButton, { backgroundColor: theme.inputBg }]}
                       onPress={() => {
-                        setRouteTargetId(event.id);
                         openRoute(event.coordinate, event.title, userLocation);
                       }}
                     >
@@ -249,19 +233,7 @@ export default function MapScreen() {
         </ScrollView>
       </View>
 
-      {routeTarget && (
-        <View style={[styles.routeBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.routeBannerText, { color: theme.success }]} numberOfLines={1}>
-            {t('routeBtn')}: {routeTarget.title}
-          </Text>
-          <TouchableOpacity
-            onPress={() => setRouteTargetId(null)}
-            style={[styles.routeClose, { backgroundColor: theme.inputBg }]}
-          >
-            <Text style={[styles.routeCloseText, { color: theme.text }]}>x</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
 
       <TouchableOpacity
         style={[styles.createFab, { backgroundColor: theme.accent }]}
