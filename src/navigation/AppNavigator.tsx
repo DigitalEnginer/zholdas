@@ -119,12 +119,15 @@ const ProfileIcon = ({ color }: { color: string; focused: boolean }) => (
 function getRecoveryParams(url: string) {
   const hash = url.includes('#') ? url.split('#')[1] : '';
   const query = url.includes('?') ? url.split('?')[1]?.split('#')[0] : '';
-  const params = new URLSearchParams(hash || query || '');
+  const params = new URLSearchParams(query || '');
+  const hashParams = new URLSearchParams(hash || '');
+  hashParams.forEach((value, key) => params.set(key, value));
 
   return {
     accessToken: params.get('access_token'),
     refreshToken: params.get('refresh_token'),
     type: params.get('type'),
+    code: params.get('code'),
     error: params.get('error'),
   };
 }
@@ -224,13 +227,18 @@ export default function AppNavigator() {
     async function handleRecoveryUrl(url?: string | null) {
       if (!url) return;
 
-      const { accessToken, refreshToken, type, error } = getRecoveryParams(url);
-      if (error || type !== 'recovery' || !accessToken || !refreshToken) return;
+      const { accessToken, refreshToken, type, code, error } = getRecoveryParams(url);
+      if (error) return;
+      if (type !== 'recovery' && !code) return;
 
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      const { error: sessionError } = code
+        ? await supabase.auth.exchangeCodeForSession(code)
+        : accessToken && refreshToken
+          ? await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+          : { error: new Error('Missing recovery session') };
 
       if (sessionError) return;
 

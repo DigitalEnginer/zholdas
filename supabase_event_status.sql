@@ -149,6 +149,8 @@ begin
     raise exception 'User is banned';
   end if;
 
+  perform public.finish_past_events();
+
   select status, max_participants
   into v_status, v_max_participants
   from public.events

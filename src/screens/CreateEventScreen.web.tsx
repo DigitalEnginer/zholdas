@@ -17,6 +17,15 @@ import { categoryEmojis } from '../data/mockEvents';
 import { deletePublicStorageImage, uploadImageToStorage } from '../lib/storage';
 import { userMessageFromModerationError, validateEventContent } from '../lib/contentModeration';
 import { useLanguage } from '../context/LanguageContext';
+import {
+  composeStartsAt,
+  formatDateInput,
+  formatEventDateTime,
+  formatTimeInput,
+  getDateOptions,
+  normalizeTimeInput,
+  parseDateInput,
+} from '../lib/eventDateTime';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
@@ -24,6 +33,7 @@ type CreateEventRoute = RouteProp<RootStackParamList, 'CreateEvent'>;
 const CATEGORIES: EventCategory[] = ['mountains', 'theatre', 'restaurant', 'sport', 'other'];
 const ALMATY = { latitude: 43.238, longitude: 76.945 };
 const ALMATY_CENTER: [number, number] = [43.238, 76.945];
+const TIME_OPTIONS = ['09:00', '12:00', '15:00', '18:00', '19:00', '20:00'];
 
 const GENDER_FILTERS: Array<{ key: GenderFilter; emoji: string }> = [
   { key: 'all', emoji: '👥' },
@@ -67,14 +77,15 @@ export default function CreateEventScreen() {
   const { createEvent, updateEvent, events } = useEvents();
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const eventId = route.params?.eventId;
   const editingEvent = eventId ? events.find(e => e.id === eventId) : undefined;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<EventCategory>('other');
-  const [datetime, setDatetime] = useState('');
+  const [eventDate, setEventDate] = useState(formatDateInput(new Date()));
+  const [eventTime, setEventTime] = useState('19:00');
   const [maxParticipants, setMaxParticipants] = useState('10');
   const [coordinate, setCoordinate] = useState(ALMATY);
   const [address, setAddress] = useState('');
@@ -87,6 +98,7 @@ export default function CreateEventScreen() {
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const dateOptions = React.useMemo(() => getDateOptions(8), []);
 
   React.useEffect(() => {
     navigation.setOptions({ title: eventId ? t('editEventTitle') : t('newEventTitle') });
@@ -97,7 +109,13 @@ export default function CreateEventScreen() {
     setTitle(editingEvent.title);
     setDescription(editingEvent.description);
     setCategory(editingEvent.category);
-    setDatetime(editingEvent.datetime);
+    if (editingEvent.startsAt) {
+      const startsAt = new Date(editingEvent.startsAt);
+      if (!Number.isNaN(startsAt.getTime())) {
+        setEventDate(formatDateInput(startsAt));
+        setEventTime(formatTimeInput(startsAt));
+      }
+    }
     setMaxParticipants(String(editingEvent.maxParticipants));
     setCoordinate(editingEvent.coordinate);
     setAddress(editingEvent.address ?? '');
@@ -173,7 +191,14 @@ export default function CreateEventScreen() {
 
   async function handleCreate() {
     if (!title.trim()) { Alert.alert(t('error'), t('titleRequired')); return; }
-    if (!datetime.trim()) { Alert.alert(t('error'), t('datetimeRequired')); return; }
+    const parsedDate = parseDateInput(eventDate);
+    const normalizedTime = normalizeTimeInput(eventTime);
+    const startsAt = parsedDate && normalizedTime ? composeStartsAt(parsedDate, normalizedTime) : null;
+    if (!parsedDate || !normalizedTime || !startsAt) { Alert.alert(t('error'), t('datetimeRequired')); return; }
+    if (!eventId && startsAt.getTime() < Date.now() - 60 * 1000) {
+      Alert.alert(t('error'), t('eventDateInPast'));
+      return;
+    }
     const max = parseInt(maxParticipants, 10);
     if (!max || max < 2) { Alert.alert(t('error'), t('minParticipantsError')); return; }
     const moderation = validateEventContent(title, description);
@@ -189,7 +214,8 @@ export default function CreateEventScreen() {
         title: title.trim(),
         description: description.trim() || t('defaultEventDescription'),
         category,
-        datetime: datetime.trim(),
+        datetime: formatEventDateTime(startsAt, locale),
+        startsAt: startsAt.toISOString(),
         maxParticipants: max,
         coordinate,
         address: address || undefined,
@@ -300,23 +326,93 @@ export default function CreateEventScreen() {
           />
 
           <Text style={[styles.label, { color: theme.subtext }]}>{t('datetimeLabel')}</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.card,
-                borderColor: focusedInput === 'datetime' ? theme.accent : theme.border,
-                color: theme.text,
-              }
-            ]}
-            placeholder={t('createEventDatetimePlaceholder')}
-            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
-            value={datetime}
-            onChangeText={setDatetime}
-            maxLength={40}
-            onFocus={() => setFocusedInput('datetime')}
-            onBlur={() => setFocusedInput(null)}
-          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
+            {dateOptions.map(option => {
+              const selected = eventDate === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor: selected ? theme.accentLight : theme.card,
+                      borderColor: selected ? theme.accent : theme.border,
+                    },
+                  ]}
+                  onPress={() => setEventDate(option.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.dateChipDay, { color: selected ? theme.accent : theme.text }]}>
+                    {option.date.toLocaleDateString(locale === 'kk' ? 'kk-KZ' : 'ru-RU', { weekday: 'short' })}
+                  </Text>
+                  <Text style={[styles.dateChipDate, { color: selected ? theme.accent : theme.subtext }]}>
+                    {option.date.toLocaleDateString(locale === 'kk' ? 'kk-KZ' : 'ru-RU', { day: 'numeric', month: 'short' })}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.dateTimeInputs}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.dateInput,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'eventDate' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
+              placeholder="2026-06-16"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+              value={eventDate}
+              onChangeText={setEventDate}
+              maxLength={10}
+              onFocus={() => setFocusedInput('eventDate')}
+              onBlur={() => setFocusedInput(null)}
+            />
+            <TextInput
+              style={[
+                styles.input,
+                styles.timeInput,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: focusedInput === 'eventTime' ? theme.accent : theme.border,
+                  color: theme.text,
+                }
+              ]}
+              placeholder="19:00"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+              value={eventTime}
+              onChangeText={setEventTime}
+              maxLength={5}
+              onFocus={() => setFocusedInput('eventTime')}
+              onBlur={() => setFocusedInput(null)}
+            />
+          </View>
+
+          <View style={styles.timeRow}>
+            {TIME_OPTIONS.map(time => {
+              const selected = eventTime === time;
+              return (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timeChip,
+                    {
+                      backgroundColor: selected ? theme.accent : theme.card,
+                      borderColor: selected ? theme.accent : theme.border,
+                    },
+                  ]}
+                  onPress={() => setEventTime(time)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.timeChipText, { color: selected ? '#FFF' : theme.text }]}>{time}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={[styles.label, { color: theme.subtext }]}>{t('maxParticipantsLabel')}</Text>
           <TextInput
@@ -555,6 +651,27 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   inputMulti: { minHeight: 80, textAlignVertical: 'top' },
+  dateRow: { gap: 8, paddingBottom: 10 },
+  dateChip: {
+    minWidth: 92,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  dateChipDay: { fontSize: 13, fontWeight: '900', textTransform: 'capitalize' },
+  dateChipDate: { fontSize: 12, fontWeight: '700', marginTop: 3, textTransform: 'capitalize' },
+  dateTimeInputs: { flexDirection: 'row', gap: 8 },
+  dateInput: { flex: 1 },
+  timeInput: { width: 104, textAlign: 'center', fontWeight: '800' },
+  timeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  timeChip: {
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  timeChipText: { fontSize: 13, fontWeight: '900' },
   addressRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   addressInput: { flex: 1, marginBottom: 0 },
   geocodeBtn: {

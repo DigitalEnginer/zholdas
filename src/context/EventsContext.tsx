@@ -91,6 +91,8 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   async function loadEvents() {
+    await supabase.rpc('finish_past_events');
+
     const { data, error } = await supabase
       .from('events')
       .select('*, profiles!events_created_by_fkey(is_banned), event_participants(user_id, profiles(id, is_banned))')

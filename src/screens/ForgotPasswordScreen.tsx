@@ -24,7 +24,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 function getPasswordResetRedirectUrl() {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.location.origin;
+    return `${window.location.origin}/reset-password`;
   }
 
   return 'zholdas://reset-password';
