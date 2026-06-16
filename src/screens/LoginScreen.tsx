@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Image,
   KeyboardAvoidingView, Platform, ScrollView, SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -16,16 +16,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ZholdasLogo = ({ theme }: { theme: any }) => (
   <View style={logoStyles.container}>
-    <LinearGradient
-      colors={[theme.accent, '#4F46E5']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={logoStyles.gradient}
-    >
-      <View style={logoStyles.innerBorder}>
-        <Text style={logoStyles.text}>ZH</Text>
-      </View>
-    </LinearGradient>
+    <Image source={require('../../assets/icon.png')} style={logoStyles.image} />
     <View style={[logoStyles.circleIndicator, { backgroundColor: theme.success, borderColor: theme.bg }]} />
   </View>
 );
@@ -38,32 +29,15 @@ const logoStyles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
-  gradient: {
+  image: {
     width: 64,
     height: 64,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 4,
-  },
-  innerBorder: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -1,
   },
   circleIndicator: {
     position: 'absolute',
