@@ -60,7 +60,7 @@ function formatDate(value: string) {
 
 function getDetailValue(details: string | null, key: string) {
   if (!details) return null;
-  const line = details.split('\n').find(item => item.startsWith(`${key}:`));
+  const line = details.split('\n').find(item => item.startsWith(`${key}:`) || item.startsWith(`${key}=`));
   return line ? line.slice(key.length + 1).trim() : null;
 }
 
@@ -320,6 +320,8 @@ export default function ModeratorDashboardScreen() {
                 const messageText = getDetailValue(report.details, 'message_text');
                 const imageUrl = getDetailValue(report.details, 'image_url');
                 const eventTitle = getDetailValue(report.details, 'event_title');
+                const reportCategory = getDetailValue(report.details, 'category');
+                const reportDescription = getDetailValue(report.details, 'description');
 
                 const statusColor = report.status === 'pending'
                   ? theme.danger
@@ -357,12 +359,28 @@ export default function ModeratorDashboardScreen() {
                     </View>
 
                     <Text style={[styles.reason, { color: theme.text }]}>{report.reason}</Text>
+                    {reportCategory || reportDescription ? (
+                      <View style={[styles.detailBox, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                        {reportCategory ? (
+                          <>
+                            <Text style={[styles.detailLabel, { color: theme.subtext }]}>Тип жалобы</Text>
+                            <Text style={[styles.detailText, { color: theme.text }]}>{reportCategory}</Text>
+                          </>
+                        ) : null}
+                        {reportDescription ? (
+                          <>
+                            <Text style={[styles.detailLabel, { color: theme.subtext, marginTop: reportCategory ? 10 : 0 }]}>Описание ситуации</Text>
+                            <Text style={[styles.detailText, { color: theme.text }]}>{reportDescription}</Text>
+                          </>
+                        ) : null}
+                      </View>
+                    ) : null}
                     {messageText ? (
                       <View style={[styles.detailBox, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                         <Text style={[styles.detailLabel, { color: theme.subtext }]}>Сообщение</Text>
                         <Text style={[styles.detailText, { color: theme.text }]}>{messageText}</Text>
                       </View>
-                    ) : report.details ? (
+                    ) : report.details && !reportCategory && !reportDescription ? (
                       <Text style={[styles.details, { color: theme.subtext }]}>{report.details}</Text>
                     ) : null}
                     {imageUrl ? (

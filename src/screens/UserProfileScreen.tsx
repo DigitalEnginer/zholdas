@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   SafeAreaView, ActivityIndicator, TouchableOpacity,
-  Alert,
+  Alert, TextInput,
 } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
@@ -62,6 +62,8 @@ export default function UserProfileScreen() {
   const [friendStatus, setFriendStatus] = useState<'none' | 'outgoing' | 'incoming' | 'accepted'>('none');
   const [isBlocked, setIsBlocked] = useState(false);
   const [reasonSheet, setReasonSheet] = useState<'ban' | 'report' | null>(null);
+  const [selectedReportReason, setSelectedReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
 
   const isOwnProfile = currentUser?.id === userId;
   const canModerate = currentUser?.role === 'moderator' || currentUser?.role === 'admin';
@@ -247,10 +249,16 @@ export default function UserProfileScreen() {
     setReasonSheet('ban');
   }
 
+  function closeReasonSheet() {
+    setReasonSheet(null);
+    setSelectedReportReason('');
+    setReportDetails('');
+  }
+
   async function banWithReason(reason: string) {
     if (!currentUser || !canModerate || isOwnProfile) return;
 
-    setReasonSheet(null);
+    closeReasonSheet();
     setBanLoading(true);
     const { error } = await supabase.from('user_bans').insert({
       user_id: userId,
@@ -269,13 +277,22 @@ export default function UserProfileScreen() {
 
   async function reportUser() {
     if (!currentUser || isOwnProfile) return;
+    setSelectedReportReason('');
+    setReportDetails('');
     setReasonSheet('report');
   }
 
-  async function reportWithReason(reason: string) {
+  async function reportWithReason(reason: string, detailsText = '') {
     if (!currentUser || isOwnProfile) return;
 
-    setReasonSheet(null);
+    const trimmedDetails = detailsText.trim();
+    const isOtherReason = reason === t('otherViolationReason');
+    if (isOtherReason && trimmedDetails.length < 3) {
+      Alert.alert(t('reportSendError'), t('reportDetailsRequired'));
+      return;
+    }
+
+    closeReasonSheet();
     setReportLoading(true);
     const { error } = await supabase.from('reports').insert({
       reporter_id: currentUser.id,
@@ -283,9 +300,11 @@ export default function UserProfileScreen() {
       reason,
       status: 'pending',
       details: [
-        'type=profile',
-        `reported_user_name=${displayName}`,
-        `reporter_name=${currentUser.name}`,
+        'type:profile',
+        `category:${reason}`,
+        `description:${trimmedDetails.replace(/\n/g, ' ').slice(0, 1000)}`,
+        `reported_user_name:${displayName}`,
+        `reporter_name:${currentUser.name}`,
       ].join('\n'),
     });
     setReportLoading(false);
@@ -341,6 +360,8 @@ export default function UserProfileScreen() {
   const reasonSubtitle = reasonSheet === 'ban'
     ? `${displayName} ${t('banUserText')}`
     : `${t('reportUserPrompt')} ${displayName}?`;
+  const isOtherReportReason = selectedReportReason === t('otherViolationReason');
+  const canSendReport = !!selectedReportReason && (!isOtherReportReason || reportDetails.trim().length >= 3);
 
   if (loading) {
     return (
@@ -572,7 +593,7 @@ export default function UserProfileScreen() {
         <TouchableOpacity
           style={styles.sheetOverlay}
           activeOpacity={1}
-          onPress={() => setReasonSheet(null)}
+          onPress={closeReasonSheet}
         >
           <TouchableOpacity
             activeOpacity={1}
@@ -584,30 +605,86 @@ export default function UserProfileScreen() {
             {reasonOptions.map(reason => (
               <TouchableOpacity
                 key={reason}
-                style={[styles.reasonOption, { borderTopColor: theme.border }]}
+                style={[
+                  styles.reasonOption,
+                  {
+                    borderTopColor: theme.border,
+                    backgroundColor: selectedReportReason === reason
+                      ? theme.accentLight
+                      : 'transparent',
+                  },
+                ]}
                 onPress={() => {
                   if (reasonSheet === 'ban') {
                     banWithReason(reason);
                   } else {
-                    reportWithReason(reason);
+                    setSelectedReportReason(reason);
                   }
                 }}
                 activeOpacity={0.75}
               >
-                <Text
-                  style={[
-                    styles.reasonOptionText,
-                    { color: reasonSheet === 'ban' ? theme.danger : theme.text },
-                  ]}
-                >
-                  {reason}
-                </Text>
+                <View style={styles.reasonOptionContent}>
+                  <Text
+                    style={[
+                      styles.reasonOptionText,
+                      { color: reasonSheet === 'ban' ? theme.danger : theme.text },
+                    ]}
+                  >
+                    {reason}
+                  </Text>
+                  {reasonSheet === 'report' && selectedReportReason === reason ? (
+                    <Text style={[styles.reasonCheck, { color: theme.accent }]}>✓</Text>
+                  ) : null}
+                </View>
               </TouchableOpacity>
             ))}
 
+            {reasonSheet === 'report' && selectedReportReason ? (
+              <View style={styles.reportDetailsBlock}>
+                <Text style={[styles.reportDetailsLabel, { color: theme.text }]}>
+                  {isOtherReportReason ? t('reportDetailsRequired') : t('reportDetailsTitle')}
+                </Text>
+                <TextInput
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  placeholder={t('reportDetailsPlaceholder')}
+                  placeholderTextColor={theme.subtext}
+                  multiline
+                  maxLength={1000}
+                  textAlignVertical="top"
+                  style={[
+                    styles.reportDetailsInput,
+                    {
+                      color: theme.text,
+                      backgroundColor: theme.inputBg,
+                      borderColor: isOtherReportReason && reportDetails.trim().length < 3
+                        ? theme.danger
+                        : theme.border,
+                    },
+                  ]}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.reasonSubmit,
+                    {
+                      backgroundColor: canSendReport ? theme.accent : theme.inputBg,
+                      borderColor: canSendReport ? theme.accent : theme.border,
+                    },
+                  ]}
+                  onPress={() => reportWithReason(selectedReportReason, reportDetails)}
+                  disabled={!canSendReport || reportLoading}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.reasonSubmitText, { color: canSendReport ? '#FFF' : theme.subtext }]}>
+                    {reportLoading ? t('loading') : t('send')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.reasonCancel, { backgroundColor: theme.inputBg }]}
-              onPress={() => setReasonSheet(null)}
+              onPress={closeReasonSheet}
               activeOpacity={0.75}
             >
               <Text style={[styles.reasonCancelText, { color: theme.subtext }]}>{t('cancel')}</Text>
@@ -790,9 +867,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderTopWidth: 1,
   },
+  reasonOptionContent: {
+    width: '100%',
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+  },
   reasonOptionText: {
     fontSize: 16,
     fontWeight: '800',
+  },
+  reasonCheck: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  reportDetailsBlock: {
+    gap: 10,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.22)',
+  },
+  reportDetailsLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    paddingHorizontal: 4,
+  },
+  reportDetailsInput: {
+    minHeight: 116,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+  },
+  reasonSubmit: {
+    minHeight: 50,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reasonSubmitText: {
+    fontSize: 16,
+    fontWeight: '900',
   },
   reasonCancel: {
     minHeight: 50,
