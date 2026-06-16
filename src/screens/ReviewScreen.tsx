@@ -34,6 +34,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 export default function ReviewScreen() {
+  return null; // Feature inactive
   const route = useRoute<ReviewRoute>();
   const navigation = useNavigation();
   const { user, updateUser } = useAuth();

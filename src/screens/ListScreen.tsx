@@ -90,13 +90,15 @@ export default function ListScreen() {
             <Text style={[styles.title, { color: theme.text }]}>{t('listTitle')}</Text>
             <Text style={[styles.subtitle, { color: theme.subtext }]}>{t('listSubtitle')}</Text>
           </View>
-          <TouchableOpacity
-            style={[styles.createBtn, { backgroundColor: theme.accent }]}
-            onPress={() => navigation.navigate('CreateEvent')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.createBtnText}>+ {t('createEventBtn')}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.createBtn, { backgroundColor: theme.accent }]}
+              onPress={() => navigation.navigate('CreateEvent')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.createBtnText}>+ {t('createEventBtn')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.searchRow}>
@@ -267,6 +269,13 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, marginTop: 2, fontWeight: '500' },
   createBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   createBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  headerChatBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   searchInput: {
     flex: 1,

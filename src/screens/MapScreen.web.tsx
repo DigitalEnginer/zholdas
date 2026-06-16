@@ -93,7 +93,8 @@ export default function MapScreen() {
     status === 'finished' ? t('statusFinished') : status === 'cancelled' ? t('statusCancelled') : t('statusActive')
   );
 
-  const filteredEvents = mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter);
+  const filteredEvents = (mapFilter === 'all' ? events : events.filter(e => e.category === mapFilter))
+    .filter(e => (e.status ?? 'active') === 'active');
   const routeTarget = events.find(e => e.id === routeTargetId) ?? null;
   const routeLine = useMemo<Array<[number, number]>>(() => {
     if (!userLocation || !routeTarget) return [];
@@ -208,7 +209,7 @@ export default function MapScreen() {
         })}
       </MapContainer>
 
-      <View style={[styles.header, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.card, borderColor: theme.border }]}>
         <View>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Жолдас</Text>
           <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
@@ -292,6 +293,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
   headerSubtitle: { fontSize: 12, marginTop: 2, fontWeight: '500' },
+  headerChatBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   filterBar: { position: 'absolute', top: 92, left: 0, right: 0, zIndex: 999 },
   filterScroll: { paddingHorizontal: 16, gap: 8 },
   filterChip: {

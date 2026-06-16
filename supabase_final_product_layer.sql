@@ -59,7 +59,7 @@ as $$
       select 1
       from public.events e
       where e.id = p_event_id
-        and e.status = 'active'
+        and e.status in ('active', 'finished')
     )
     and (
       public.is_moderator_or_admin()

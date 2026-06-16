@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, useWindowDimensions, View,
+  Text, TextInput, TouchableOpacity, useWindowDimensions, View, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -409,22 +409,37 @@ export default function AdminDashboardScreen() {
   }
 
   function deleteEvent(event: AdminEvent) {
-    Alert.alert('Удалить ивент?', `"${event.title}" пропадет из приложения.`, [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Удалить',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('events').delete().eq('id', event.id);
-          if (error) {
-            Alert.alert('Не удалось удалить', error.message);
-            return;
-          }
-          await logAdminAction('event_deleted', event.created_by, event.id, event.title);
-          await loadAdminData();
-        },
-      },
-    ]);
+    const doDelete = async () => {
+      try {
+        // 1. Delete related messages first
+        await supabase.from('messages').delete().eq('event_id', event.id);
+        // 2. Delete related participants
+        await supabase.from('event_participants').delete().eq('event_id', event.id);
+        // 3. Delete reviews if any
+        await supabase.from('reviews').delete().eq('event_id', event.id);
+        
+        // 4. Finally delete the event
+        const { error } = await supabase.from('events').delete().eq('id', event.id);
+        if (error) {
+          Alert.alert('Не удалось удалить', error.message);
+          return;
+        }
+        await logAdminAction('event_deleted', event.created_by, event.id, event.title);
+        await loadAdminData();
+      } catch (err: any) {
+        Alert.alert('Не удалось удалить', err.message ?? 'Неизвестная ошибка');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' && window.confirm(`Удалить ивент?\n\n"${event.title}" пропадет из приложения.`);
+      if (confirmed) doDelete();
+    } else {
+      Alert.alert('Удалить ивент?', `"${event.title}" пропадет из приложения.`, [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Удалить', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }
 
   async function deleteMessage(message: AdminMessage) {

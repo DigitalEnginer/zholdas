@@ -12,6 +12,7 @@ import { useEvents } from '../context/EventsContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, getDistance } from '../hooks/useLocation';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -37,6 +38,7 @@ export default function MapScreen() {
   const { events, joinEvent, leaveEvent, isJoined } = useEvents();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { theme, isDark } = useTheme();
   const userLocation = useLocation();
   const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -184,9 +186,11 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🗺 Жолдас</Text>
-        <Text style={styles.headerSubtitle}>{filteredEvents.length} {t('mapEventsInAlmaty')}</Text>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>🗺 Жолдас</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>{filteredEvents.length} {t('mapEventsInAlmaty')}</Text>
+        </View>
       </View>
 
       <View style={styles.filterBar}>
@@ -384,6 +388,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
   headerSubtitle: { fontSize: 12, color: '#667085', marginTop: 2 },
+  headerChatBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   filterBar: {
     position: 'absolute', top: 148, left: 0, right: 0,
   },

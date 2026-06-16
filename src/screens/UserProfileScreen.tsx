@@ -76,7 +76,6 @@ export default function UserProfileScreen() {
     const [
       { data: profileData },
       { data: eventsData },
-      { data: reviewsData },
       { data: banData },
       { data: outgoingRequest },
       { data: incomingRequest },
@@ -85,9 +84,6 @@ export default function UserProfileScreen() {
       supabase.from('profiles').select('*').eq('id', userId).single(),
       supabase.from('events').select('id, title, datetime, participants_count, category')
         .eq('created_by', userId).order('created_at', { ascending: false }).limit(5),
-      supabase.from('reviews')
-        .select('id, rating, comment, profiles!reviews_from_user_id_fkey(name, avatar)')
-        .eq('to_user_id', userId).order('created_at', { ascending: false }).limit(10),
       canModerate
         ? supabase.from('user_bans').select('user_id').eq('user_id', userId).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -123,13 +119,7 @@ export default function UserProfileScreen() {
       participantsCount: e.participants_count, category: e.category,
     })));
 
-    setReviews((reviewsData ?? []).map((r: any) => ({
-      id: r.id,
-      fromName: (r.profiles as any)?.name ?? t('userLabel'),
-      fromAvatar: (r.profiles as any)?.avatar ?? '🧑',
-      rating: r.rating,
-      comment: r.comment,
-    })));
+    setReviews([]);
 
     setIsBanned(!!banData);
     setIsBlocked(!!blockData);
@@ -400,15 +390,6 @@ export default function UserProfileScreen() {
             <Text style={[styles.bio, { color: theme.subtext }]}>{profile.bio}</Text>
           ) : null}
 
-          <View style={styles.ratingRow}>
-            {[1, 2, 3, 4, 5].map(i => (
-              <Text key={i} style={[styles.star, i <= Math.round(displayRating) && styles.starFilled]}>★</Text>
-            ))}
-            <Text style={[styles.ratingVal, { color: theme.text }]}>
-              {displayRating > 0 ? displayRating.toFixed(1) : '—'}
-            </Text>
-          </View>
-
           {/* Action Buttons Section */}
           <View style={styles.actionSection}>
             <View style={styles.mainActionsRow}>
@@ -508,7 +489,6 @@ export default function UserProfileScreen() {
           {[
             { label: t('eventsLabel'), value: profile?.eventsJoined ?? 0 },
             { label: t('friendsLabel'), value: profile?.friendsMade ?? 0 },
-            { label: t('reviewsLabel'), value: profile?.reviewsCount ?? 0 },
           ].map((stat, index) => (
             <View
               key={stat.label}
@@ -551,40 +531,7 @@ export default function UserProfileScreen() {
           </View>
         )}
 
-        <View
-          style={[
-            styles.section,
-            {
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              shadowColor: shadowHex,
-              shadowOpacity,
-            }
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('reviewsSectionTitle')}</Text>
-          {reviews.length === 0 ? (
-            <View style={[styles.emptyReviews, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Text style={styles.emptyReviewsIcon}>★</Text>
-              <Text style={[styles.emptyReviewsText, { color: theme.subtext }]}>{t('reviewsSection')}</Text>
-            </View>
-          ) : (
-            reviews.map((review, i) => (
-              <View key={review.id} style={[styles.reviewRow, { borderTopColor: theme.border }, i === 0 && { borderTopWidth: 0 }]}>
-                <AvatarImage value={review.fromAvatar} size={38} backgroundColor={theme.accentLight} textSize={22} />
-                <View style={{ flex: 1 }}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={[styles.reviewFrom, { color: theme.text }]}>{review.fromName}</Text>
-                    <Text style={styles.reviewStars}>{'★'.repeat(review.rating)}</Text>
-                  </View>
-                  {review.comment ? (
-                    <Text style={[styles.reviewText, { color: theme.subtext }]}>{review.comment}</Text>
-                  ) : null}
-                </View>
-              </View>
-            ))
-          )}
-        </View>
+
 
         <View style={{ height: 40 }} />
       </ScrollView>

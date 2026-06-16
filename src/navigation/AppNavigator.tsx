@@ -9,6 +9,7 @@ import MapScreen from '../screens/MapScreen';
 import ListScreen from '../screens/ListScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import ChatScreen from '../screens/ChatScreen';
+import ChatsListScreen from '../screens/ChatsListScreen';
 import CreateEventScreen from '../screens/CreateEventScreen';
 import ReviewScreen from '../screens/ReviewScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -116,6 +117,29 @@ const ProfileIcon = ({ color }: { color: string; focused: boolean }) => (
   </View>
 );
 
+const ChatsIcon = ({ color }: { color: string; focused: boolean }) => (
+  <View style={{ width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{
+      width: 15,
+      height: 12,
+      borderRadius: 3,
+      borderWidth: 2,
+      borderColor: color,
+      position: 'relative',
+    }}>
+      <View style={{
+        position: 'absolute',
+        bottom: -3,
+        left: 2,
+        width: 3,
+        height: 3,
+        backgroundColor: color,
+        transform: [{ rotate: '45deg' }],
+      }} />
+    </View>
+  </View>
+);
+
 function getRecoveryParams(url: string) {
   const hash = url.includes('#') ? url.split('#')[1] : '';
   const query = url.includes('?') ? url.split('?')[1]?.split('#')[0] : '';
@@ -142,6 +166,7 @@ function TabIcon({ name, focused, theme, badge }: { name: string; focused: boole
         {name === 'List' && <ListIcon color={color} focused={focused} />}
         {name === 'Activity' && <ActivityIcon color={color} focused={focused} />}
         {name === 'Profile' && <ProfileIcon color={color} focused={focused} />}
+        {name === 'ChatsList' && <ChatsIcon color={color} focused={focused} />}
         {badge != null && badge > 0 && (
           <View style={[styles.badgeDot, { backgroundColor: theme.danger, borderColor: '#0D1426' }]}>
             <Text style={styles.badgeDotText}>{badge > 9 ? '9+' : badge}</Text>
@@ -183,6 +208,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Map" component={MapScreen} options={{ title: t('tabMap') }} />
       <Tab.Screen name="List" component={ListScreen} options={{ title: t('tabList') }} />
+      <Tab.Screen name="ChatsList" component={ChatsListScreen} options={{ title: t('tabChats') }} />
       <Tab.Screen name="Activity" component={ActivityScreen} options={{ title: t('tabActivity') }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t('tabProfile') }} />
     </Tab.Navigator>

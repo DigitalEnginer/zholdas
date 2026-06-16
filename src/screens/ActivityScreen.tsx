@@ -122,10 +122,6 @@ export default function ActivityScreen() {
     if (user) loadFriends();
   }, [user]);
 
-  useEffect(() => {
-    loadFeed();
-  }, [friendIds, friendsOnly]);
-
   async function loadFriends() {
     if (!user) return;
     const { data } = await supabase
@@ -158,6 +154,7 @@ export default function ActivityScreen() {
     const joinItems: ActivityItem[] = (joins ?? [])
       .filter((j: any) => !(j.profiles as any)?.is_banned)
       .filter((j: any) => !blockedIds.has(j.user_id))
+      .filter((j: any) => !user || j.user_id !== user.id)
       .map((j: any) => ({
         id: `join-${j.event_id}-${j.user_id}`,
         type: 'join' as const,
@@ -172,6 +169,7 @@ export default function ActivityScreen() {
     const createItems: ActivityItem[] = (creates ?? [])
       .filter((e: any) => !(e.profiles as any)?.is_banned)
       .filter((e: any) => !blockedIds.has(e.created_by))
+      .filter((e: any) => !user || e.created_by !== user.id)
       .map((e: any) => ({
         id: `create-${e.id}`,
         type: 'create' as const,
@@ -193,7 +191,11 @@ export default function ActivityScreen() {
     all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     setFeed(all);
     setRefreshing(false);
-  }, [friendsOnly, friendIds]);
+  }, [friendsOnly, friendIds, user, t]);
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
 
   function refresh() {
     setRefreshing(true);
@@ -258,7 +260,7 @@ export default function ActivityScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             item={item}
-            onPress={() => navigation.navigate('Chat', { eventId: item.eventId, eventTitle: item.eventTitle })}
+            onPress={() => navigation.navigate('Chat', { eventId: item.eventId!, eventTitle: item.eventTitle! })}
           />
         )}
         contentContainerStyle={styles.list}

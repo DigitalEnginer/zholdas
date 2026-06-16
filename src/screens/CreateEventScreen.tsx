@@ -70,6 +70,96 @@ export default function CreateEventScreen() {
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const dateOptions = React.useMemo(() => getDateOptions(8), []);
 
+  const filteredTimeOptions = React.useMemo(() => {
+    const isToday = eventDate === formatDateInput(new Date());
+    if (!isToday) return TIME_OPTIONS;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return TIME_OPTIONS.filter(time => {
+      const [h, m] = time.split(':').map(Number);
+      return h > currentHour || (h === currentHour && m > currentMinute);
+    });
+  }, [eventDate]);
+
+  const validationErrors = React.useMemo(() => {
+    const errs: string[] = [];
+    if (!title.trim()) {
+      errs.push(t('titleRequired'));
+    }
+
+    const parsedDate = parseDateInput(eventDate);
+    const normalizedTime = normalizeTimeInput(eventTime);
+    const startsAt = parsedDate && normalizedTime ? composeStartsAt(parsedDate, normalizedTime) : null;
+
+    if (!parsedDate || !normalizedTime || !startsAt) {
+      errs.push(t('datetimeRequired'));
+    } else if (!eventId && startsAt.getTime() < Date.now() - 60 * 1000) {
+      errs.push(t('eventDateInPast'));
+    }
+
+    const max = parseInt(maxParticipants, 10);
+    if (!max || max < 2) {
+      errs.push(t('minParticipantsError'));
+    }
+
+    const minA = minAge ? parseInt(minAge, 10) : undefined;
+    const maxA = maxAge ? parseInt(maxAge, 10) : undefined;
+    if (minA !== undefined && maxA !== undefined && minA > maxA) {
+      errs.push(t('ageRangeError'));
+    }
+
+    return errs;
+  }, [title, eventDate, eventTime, maxParticipants, minAge, maxAge, t, eventId]);
+
+  React.useEffect(() => {
+    if (eventId) return;
+
+    // Set default time to a future one on mount
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const [h, m] = eventTime.split(':').map(Number);
+    if (h < currentHour || (h === currentHour && m <= currentMinute)) {
+      const futureOpt = TIME_OPTIONS.find(time => {
+        const [optH, optM] = time.split(':').map(Number);
+        return optH > currentHour || (optH === currentHour && optM > currentMinute);
+      });
+      if (futureOpt) {
+        setEventTime(futureOpt);
+      } else {
+        const nextHour = (currentHour + 1) % 24;
+        setEventTime(`${String(nextHour).padStart(2, '0')}:00`);
+      }
+    }
+  }, []);
+
+  const handleDateChange = (dateVal: string) => {
+    setEventDate(dateVal);
+
+    const todayStr = formatDateInput(new Date());
+    if (dateVal === todayStr) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const [h, m] = eventTime.split(':').map(Number);
+      if (h < currentHour || (h === currentHour && m <= currentMinute)) {
+        const futureOpt = TIME_OPTIONS.find(time => {
+          const [optH, optM] = time.split(':').map(Number);
+          return optH > currentHour || (optH === currentHour && optM > currentMinute);
+        });
+        if (futureOpt) {
+          setEventTime(futureOpt);
+        } else {
+          const nextHour = (currentHour + 1) % 24;
+          setEventTime(`${String(nextHour).padStart(2, '0')}:00`);
+        }
+      }
+    }
+  };
+
   React.useEffect(() => {
     navigation.setOptions({ title: eventId ? t('editEventTitle') : t('newEventTitle') });
   }, [eventId, navigation, t]);
@@ -202,22 +292,33 @@ export default function CreateEventScreen() {
 
       if (eventId) {
         await updateEvent(eventId, payload);
-        Alert.alert(t('done'), t('eventUpdated'), [
-          { text: t('toDetails'), onPress: () => navigation.replace('EventDetails', { eventId }) },
-        ]);
+        if (Platform.OS === 'web') {
+          navigation.replace('EventDetails', { eventId });
+        } else {
+          Alert.alert(t('done'), t('eventUpdated'), [
+            { text: t('toDetails'), onPress: () => navigation.replace('EventDetails', { eventId }) },
+          ]);
+        }
         return;
       }
 
       await createEvent(payload);
-      Alert.alert(t('done'), t('eventCreated'), [
-        {
-          text: t('done'),
-          onPress: () => navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          }),
-        },
-      ]);
+      if (Platform.OS === 'web') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      } else {
+        Alert.alert(t('done'), t('eventCreated'), [
+          {
+            text: t('done'),
+            onPress: () => navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            }),
+          },
+        ]);
+      }
     } catch (e: any) {
       Alert.alert(t('error'), userMessageFromModerationError(e.message) ?? t('eventCreateSubmit'));
     } finally {
@@ -317,7 +418,7 @@ export default function CreateEventScreen() {
                         borderColor: selected ? theme.accent : theme.border,
                       },
                     ]}
-                    onPress={() => setEventDate(option.value)}
+                    onPress={() => handleDateChange(option.value)}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.dateChipDay, { color: selected ? theme.accent : theme.text }]}>
@@ -345,7 +446,7 @@ export default function CreateEventScreen() {
                 placeholder="2026-06-16"
                 placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                 value={eventDate}
-                onChangeText={setEventDate}
+                onChangeText={handleDateChange}
                 maxLength={10}
                 onFocus={() => setFocusedInput('eventDate')}
                 onBlur={() => setFocusedInput(null)}
@@ -371,7 +472,7 @@ export default function CreateEventScreen() {
             </View>
 
             <View style={styles.timeRow}>
-              {TIME_OPTIONS.map(time => {
+              {filteredTimeOptions.map(time => {
                 const selected = eventTime === time;
                 return (
                   <TouchableOpacity
@@ -598,6 +699,16 @@ export default function CreateEventScreen() {
             )}
           </View>
 
+          {validationErrors.length > 0 && (
+            <View style={[styles.warningContainer, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2', borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FEE2E2' }]}>
+              {validationErrors.map((err, idx) => (
+                <Text key={idx} style={[styles.warningText, { color: theme.danger }]}>
+                  ⚠️ {err}
+                </Text>
+              ))}
+            </View>
+          )}
+
           <TouchableOpacity
             style={[
               styles.createBtn,
@@ -712,4 +823,17 @@ const styles = StyleSheet.create({
     borderRadius: 16, paddingVertical: 16, alignItems: 'center',
   },
   createBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  warningContainer: {
+    margin: 16,
+    marginBottom: 0,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

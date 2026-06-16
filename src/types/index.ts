@@ -65,12 +65,12 @@ export interface User {
 
 export interface ActivityItem {
   id: string;
-  type: 'join' | 'create' | 'review' | 'near';
+  type: 'join' | 'create' | 'review' | 'near' | 'friend_request';
   userId: string;
   userName: string;
   userAvatar: string;
-  eventId: string;
-  eventTitle: string;
+  eventId?: string;
+  eventTitle?: string;
   timestamp: Date;
   extra?: string;
 }
@@ -104,11 +104,13 @@ export type RootStackParamList = {
   Friends: undefined;
   Notifications: undefined;
   AdminRoles: undefined;
+  ChatsList: undefined;
 };
 
 export type BottomTabParamList = {
   Map: undefined;
   List: undefined;
+  ChatsList: undefined;
   Activity: undefined;
   Profile: undefined;
 };

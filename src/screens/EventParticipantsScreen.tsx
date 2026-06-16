@@ -153,9 +153,7 @@ export default function EventParticipantsScreen() {
                           ? t('hiddenForUsers')
                           : participant.id === user?.id
                             ? t('thisIsYou')
-                            : participant.rating > 0
-                              ? `${t('ratingLabel')} ${participant.rating.toFixed(1)}`
-                              : t('participantProfile')}
+                            : t('participantProfile')}
                       </Text>
                     </View>
                     <Text style={[styles.arrow, { color: theme.subtext }]}>›</Text>

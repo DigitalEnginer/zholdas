@@ -55,7 +55,7 @@ function ChevronRight({ color }: { color: string }) {
 
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
   const { events, isJoined } = useEvents();
   const { theme, isDark, themeMode, setThemeMode } = useTheme();
   const { t, locale, setLocale } = useLanguage();
@@ -75,28 +75,20 @@ export default function ProfileScreen() {
   async function loadProfileStats() {
     if (!user) return;
 
-    const [{ data: friendsData }, { data: reviewsData }] = await Promise.all([
-      supabase
-        .from('friend_requests')
-        .select('id')
-        .eq('status', 'accepted')
-        .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`),
-      supabase
-        .from('reviews')
-        .select('id, rating, comment, profiles!reviews_from_user_id_fkey(name, avatar)')
-        .eq('to_user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ]);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.warn('Failed to refresh profile:', err);
+    }
+
+    const { data: friendsData } = await supabase
+      .from('friend_requests')
+      .select('id')
+      .eq('status', 'accepted')
+      .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`);
 
     setFriendsCount(friendsData?.length ?? 0);
-    setProfileReviews((reviewsData ?? []).map((review: any) => ({
-      id: review.id,
-      fromName: review.profiles?.name ?? t('userLabel'),
-      fromAvatar: review.profiles?.avatar ?? '👤',
-      rating: Number(review.rating ?? 0),
-      comment: review.comment ?? '',
-    })));
+    setProfileReviews([]);
   }
 
   function handleLogout() {
@@ -130,11 +122,6 @@ export default function ProfileScreen() {
       label: t('friendsLabel'),
       value: String(friendsCount),
       onPress: () => navigation.navigate('Friends'),
-    },
-    {
-      label: t('reviewsLabel'),
-      value: String(user.reviewsCount || profileReviews.length),
-      onPress: () => scrollRef.current?.scrollTo({ y: reviewsSectionY.current, animated: true }),
     },
   ];
 
@@ -193,10 +180,6 @@ export default function ProfileScreen() {
           <Text style={[styles.name, { color: theme.text }]}>{user.name}</Text>
           <Text style={[styles.username, { color: theme.subtext }]}>{user.username}</Text>
           {user.bio ? <Text style={[styles.bio, { color: theme.subtext }]}>{user.bio}</Text> : null}
-          <StarRating rating={user.rating} />
-          {user.reviewsCount > 0 && (
-            <Text style={[styles.reviews, { color: theme.subtext }]}>{user.reviewsCount} {t('reviewWord')}</Text>
-          )}
           <Text style={[styles.since, { color: theme.subtext }]}>{t('joinedSince')} {user.joinedAt}</Text>
 
           <TouchableOpacity
@@ -265,36 +248,7 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View
-          style={[
-            styles.section,
-            { backgroundColor: theme.card, borderColor: theme.border, ...cardShadow },
-          ]}
-          onLayout={event => { reviewsSectionY.current = event.nativeEvent.layout.y; }}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('reviewsSectionTitle')}</Text>
-          {profileReviews.length === 0 ? (
-            <View style={[styles.emptyEvents, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-              <Text style={[styles.emptyEventsIcon, { color: theme.subtext }]}>★</Text>
-              <Text style={[styles.emptyEventsText, { color: theme.subtext }]}>{t('reviewsSection')}</Text>
-            </View>
-          ) : (
-            profileReviews.map((review, i) => (
-              <View key={review.id} style={[styles.reviewRow, { borderTopColor: theme.border }, i === 0 && { borderTopWidth: 0 }]}>
-                <AvatarImage value={review.fromAvatar} size={38} backgroundColor={theme.accentLight} textSize={22} />
-                <View style={styles.reviewBody}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={[styles.reviewFrom, { color: theme.text }]}>{review.fromName}</Text>
-                    <Text style={styles.reviewStars}>{'★'.repeat(review.rating)}</Text>
-                  </View>
-                  {review.comment ? (
-                    <Text style={[styles.reviewText, { color: theme.subtext }]}>{review.comment}</Text>
-                  ) : null}
-                </View>
-              </View>
-            ))
-          )}
-        </View>
+
 
         <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, ...cardShadow }]}>
           <Text style={[styles.sectionTitle, { color: theme.subtext }]}>{t('settingsSectionTitle')}</Text>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Alert,
+  StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Alert, Modal,
 } from 'react-native';
 import { Share } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -86,11 +86,19 @@ export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { eventId, eventTitle } = route.params;
   const { user } = useAuth();
-  const { events, leaveEvent, isJoined, updateEventStatus } = useEvents();
+  const { events, leaveEvent, isJoined, updateEventStatus, updateEvent, isLoading: eventsLoading } = useEvents();
   const { theme, isDark } = useTheme();
   const haptics = useHaptics();
   const { t } = useLanguage();
   const event = events.find(e => e.id === eventId);
+
+  // Redirect if event is deleted while looking at chat
+  useEffect(() => {
+    if (!eventsLoading && !event) {
+      Alert.alert('', t('eventDeleted') ?? 'Ивент был удален организатором');
+      navigation.navigate('ChatsList');
+    }
+  }, [event, eventsLoading]);
   const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const canModerateChat = canManageEvent;
   const joined = !!user && isJoined(eventId, user.id);
@@ -104,25 +112,26 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isAITyping, setIsAITyping] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showCreatorMenu, setShowCreatorMenu] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     navigation.setOptions({
       title: eventTitle,
       headerRight: () => (
-        <View style={{ flexDirection: 'row', gap: 8, marginRight: 4 }}>
-          <TouchableOpacity onPress={handleShare}>
-            <Text style={{ fontSize: 20 }}>↗</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginRight: 4, alignItems: 'center' }}>
+          <TouchableOpacity onPress={handleShare} style={{ padding: 6 }}>
+            <Text style={{ fontSize: 20, color: theme.accent }}>↗</Text>
           </TouchableOpacity>
           {canManageEvent && (
-            <TouchableOpacity onPress={handleCreatorMenu}>
-              <Text style={{ fontSize: 20 }}>...</Text>
+            <TouchableOpacity onPress={handleCreatorMenu} style={{ padding: 6 }}>
+              <Text style={{ fontSize: 20, color: theme.accent }}>•••</Text>
             </TouchableOpacity>
           )}
         </View>
       ),
     });
-  }, [eventTitle, canManageEvent, eventStatus, inputText]);
+  }, [eventTitle, canManageEvent, eventStatus, theme.accent]);
 
   useEffect(() => {
     loadMessages();
@@ -229,7 +238,7 @@ export default function ChatScreen() {
   }
 
   async function handlePickPhoto() {
-    if (!user || !isActive) return;
+    if (!user || (eventStatus !== 'active' && eventStatus !== 'finished')) return;
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -272,16 +281,26 @@ export default function ChatScreen() {
 
   function handleLeave() {
     if (!user) return;
-    Alert.alert(t('chatLeavePrompt'), t('chatLeaveText'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('leaveBtn'), style: 'destructive', onPress: async () => {
-          haptics.medium();
-          await leaveEvent(eventId, user.id);
-          navigation.goBack();
-        },
-      },
-    ]);
+
+    const doLeave = async () => {
+      haptics.medium();
+      try {
+        await leaveEvent(eventId, user.id);
+        navigation.goBack();
+      } catch (err: any) {
+        Alert.alert(t('error'), err.message ?? t('error'));
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('chatLeavePrompt')}?\n\n${t('chatLeaveText')}`);
+      if (confirmed) doLeave();
+    } else {
+      Alert.alert(t('chatLeavePrompt'), t('chatLeaveText'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('leaveBtn'), style: 'destructive', onPress: doLeave },
+      ]);
+    }
   }
 
   async function changeEventStatus(status: EventStatus, cancelReason?: string) {
@@ -305,37 +324,38 @@ export default function ChatScreen() {
     changeEventStatus('cancelled', t('cancelNotice'));
   }
 
+  function handleRenameGroup() {
+    if (Platform.OS === 'web') {
+      const newTitle = window.prompt(t('enterNewGroupName') ?? 'Введите новое название группы:', eventTitle);
+      if (newTitle && newTitle.trim()) {
+        saveNewGroupName(newTitle.trim());
+      }
+    } else {
+      Alert.prompt(
+        t('renameGroupChat') ?? 'Переименовать группу',
+        t('enterNewGroupName') ?? 'Введите новое название группы:',
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { text: 'OK', onPress: (newTitle?: string) => newTitle && newTitle.trim() && saveNewGroupName(newTitle.trim()) }
+        ],
+        'plain-text',
+        eventTitle
+      );
+    }
+  }
+
+  async function saveNewGroupName(newTitle: string) {
+    try {
+      await updateEvent(eventId, { title: newTitle });
+      navigation.setOptions({ title: newTitle });
+      haptics.medium();
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message);
+    }
+  }
+
   function handleCreatorMenu() {
-    Alert.alert(eventTitle, t('eventManageTitle'), [
-      ...(eventStatus !== 'finished' ? [{
-        text: t('finishEventAction'),
-        onPress: () => changeEventStatus('finished' as EventStatus),
-      }] : []),
-      ...(eventStatus !== 'cancelled' ? [{
-        text: t('cancelEventAction'),
-        style: 'destructive' as const,
-        onPress: cancelEvent,
-      }] : []),
-      ...(eventStatus !== 'active' ? [{
-        text: t('reactivateEventAction'),
-        onPress: () => changeEventStatus('active' as EventStatus),
-      }] : []),
-      {
-        text: t('deleteEventAction'), style: 'destructive' as const, onPress: () => {
-          Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
-            { text: t('cancel'), style: 'cancel' },
-            {
-              text: t('delete'), style: 'destructive', onPress: async () => {
-                await supabase.from('events').delete().eq('id', eventId);
-                haptics.medium();
-                navigation.navigate('Main');
-              },
-            },
-          ]);
-        },
-      },
-      { text: t('cancel'), style: 'cancel' },
-    ]);
+    setShowCreatorMenu(true);
   }
 
   async function handleAI(forcedQuestion?: string) {
@@ -396,66 +416,187 @@ export default function ChatScreen() {
   function reportMessage(message: Message) {
     if (!user || message.userId === 'ai' || message.userId === user.id) return;
 
-    Alert.alert(t('reportTitle'), t('reportText'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('send'),
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('reports').insert({
-            reporter_id: user.id,
-            reported_user_id: message.userId,
-            reason: t('reportTitle'),
-            details: [
-              'type:message',
-              `message_id:${message.id}`,
-              `event_id:${eventId}`,
-              `event_title:${eventTitle}`,
-              `message_text:${message.text.slice(0, 500)}`,
-              `image_url:${message.imageUri ?? ''}`,
-            ].join('\n'),
-          });
+    const doReport = async () => {
+      const { error } = await supabase.from('reports').insert({
+        reporter_id: user.id,
+        reported_user_id: message.userId,
+        reason: t('reportTitle'),
+        details: [
+          'type:message',
+          `message_id:${message.id}`,
+          `event_id:${eventId}`,
+          `event_title:${eventTitle}`,
+          `message_text:${message.text.slice(0, 500)}`,
+          `image_url:${message.imageUri ?? ''}`,
+        ].join('\n'),
+      });
 
-          if (error) {
-            Alert.alert(t('error'), error.message);
-            return;
-          }
+      if (error) {
+        Alert.alert(t('error'), error.message);
+        return;
+      }
 
-          haptics.medium();
-          Alert.alert(t('done'), t('done'));
-        },
-      },
-    ]);
+      haptics.medium();
+      Alert.alert(t('done'), t('done'));
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('reportTitle')}?\n\n${t('reportText')}`);
+      if (confirmed) doReport();
+    } else {
+      Alert.alert(t('reportTitle'), t('reportText'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('send'), style: 'destructive', onPress: doReport },
+      ]);
+    }
   }
 
   function deleteMessage(message: Message) {
     if (!canModerateChat) return;
 
-    Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase
-            .from('messages')
-            .delete()
-            .eq('id', message.id);
+    const doDeleteMsg = async () => {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', message.id);
 
-          if (error) {
-            Alert.alert(t('error'), error.message);
-            return;
-          }
+      if (error) {
+        Alert.alert(t('error'), error.message);
+        return;
+      }
 
-          haptics.medium();
-          setMessages(prev => prev.filter(item => item.id !== message.id));
-        },
-      },
-    ]);
+      haptics.medium();
+      setMessages(prev => prev.filter(item => item.id !== message.id));
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('deleteMsgTitle')}?\n\n${t('deleteMsgText')}`);
+      if (confirmed) doDeleteMsg();
+    } else {
+      Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: doDeleteMsg },
+      ]);
+    }
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <Modal
+        visible={showCreatorMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCreatorMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCreatorMenu(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{eventTitle}</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.subtext }]}>{t('eventManageTitle')}</Text>
+
+            {eventStatus === 'finished' ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setShowCreatorMenu(false);
+                    setTimeout(() => handleRenameGroup(), 100);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: theme.accent }]}>✏️ {t('renameGroupChat') ?? 'Переименовать группу'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : eventStatus === 'active' ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setShowCreatorMenu(false);
+                    setTimeout(() => changeEventStatus('finished' as EventStatus), 100);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: theme.text }]}>✅ {t('finishEventAction')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setShowCreatorMenu(false);
+                    setTimeout(() => cancelEvent(), 100);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: theme.danger }]}>🚫 {t('cancelEventAction')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setShowCreatorMenu(false);
+                    setTimeout(() => changeEventStatus('active' as EventStatus), 100);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: theme.text }]}>🔄 {t('reactivateEventAction')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalOption, { borderBottomColor: theme.border }]}
+              onPress={() => {
+                setShowCreatorMenu(false);
+                setTimeout(() => {
+                  const doDelete = async () => {
+                    try {
+                      // 1. Delete related messages first
+                      await supabase.from('messages').delete().eq('event_id', eventId);
+                      // 2. Delete related participants
+                      await supabase.from('event_participants').delete().eq('event_id', eventId);
+                      // 3. Delete reviews if any
+                      await supabase.from('reviews').delete().eq('event_id', eventId);
+                      
+                      // 4. Finally delete the event
+                      const { error } = await supabase.from('events').delete().eq('id', eventId);
+                      if (error) {
+                        Alert.alert(t('error'), error.message);
+                      } else {
+                        haptics.medium();
+                        navigation.navigate('ChatsList');
+                      }
+                    } catch (err: any) {
+                      Alert.alert(t('error'), err.message ?? t('error'));
+                    }
+                  };
+
+                  if (Platform.OS === 'web') {
+                    const confirmed = typeof window !== 'undefined' && window.confirm(`${t('deleteEventPrompt')}\n\n${t('deleteEventText')}`);
+                    if (confirmed) doDelete();
+                  } else {
+                    Alert.alert(t('deleteEventPrompt'), t('deleteEventText'), [
+                      { text: t('cancel'), style: 'cancel' },
+                      { text: t('delete'), style: 'destructive', onPress: doDelete },
+                    ]);
+                  }
+                }, 100);
+              }}
+            >
+              <Text style={[styles.modalOptionText, { color: theme.danger }]}>🗑️ {t('deleteEventAction')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalCloseBtn, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+              onPress={() => setShowCreatorMenu(false)}
+            >
+              <Text style={[styles.modalCloseBtnText, { color: theme.text }]}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {event && (
         <View style={[styles.eventBanner, { backgroundColor: theme.accentLight, borderBottomColor: theme.border }]}>
           <Text style={[styles.bannerText, { color: theme.accent }]}>
@@ -470,17 +611,6 @@ export default function ChatScreen() {
               style={[styles.participantsBtn, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
             >
               <Text style={[styles.participantsBtnText, { color: theme.accent }]}>{t('participants')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Review', { eventId, eventTitle })}
-              style={[
-                styles.reviewBtn,
-                { backgroundColor: theme.accent },
-                eventStatus !== 'finished' && { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.4)' : '#C7D2FE' },
-              ]}
-              disabled={eventStatus !== 'finished'}
-            >
-              <Text style={styles.reviewBtnText}>{eventStatus === 'finished' ? t('reviewSubmitBtn') : t('reviewAvailableAfterFinish')}</Text>
             </TouchableOpacity>
             {joined && event?.createdBy !== user?.id && (
               <TouchableOpacity
@@ -549,13 +679,13 @@ export default function ChatScreen() {
             style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={isActive ? t('chatPlaceholder') + ' · @ai вопрос' : t('chatClosed')}
+            placeholder={eventStatus === 'active' ? t('chatPlaceholder') + ' · @ai вопрос' : eventStatus === 'finished' ? t('chatPlaceholder') + ' (Ивент завершен)' : t('chatClosed')}
             placeholderTextColor={theme.subtext}
             multiline
             maxLength={500}
             returnKeyType="send"
             onSubmitEditing={handleSend}
-            editable={isActive}
+            editable={eventStatus === 'active' || eventStatus === 'finished'}
           />
           <TouchableOpacity
             style={[
@@ -564,10 +694,10 @@ export default function ChatScreen() {
                 backgroundColor: theme.inputBg,
                 borderColor: theme.border,
               },
-              (!isActive || uploadingPhoto) && styles.actionDisabled,
+              (!(eventStatus === 'active' || eventStatus === 'finished') || uploadingPhoto) && styles.actionDisabled,
             ]}
             onPress={handlePickPhoto}
-            disabled={!isActive || uploadingPhoto}
+            disabled={!(eventStatus === 'active' || eventStatus === 'finished') || uploadingPhoto}
             activeOpacity={0.75}
           >
             <Text style={[styles.photoBtnText, { color: theme.subtext }]}>{uploadingPhoto ? '...' : '📷'}</Text>
@@ -593,13 +723,13 @@ export default function ChatScreen() {
               {
                 backgroundColor: theme.accent,
               },
-              (!inputText.trim() || !isActive) && { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' },
+              (!inputText.trim() || !(eventStatus === 'active' || eventStatus === 'finished')) && { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' },
             ]}
             onPress={handleSend}
-            disabled={!inputText.trim() || !isActive}
+            disabled={!inputText.trim() || !(eventStatus === 'active' || eventStatus === 'finished')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.sendBtnText, { color: (!inputText.trim() || !isActive) ? theme.subtext : '#FFF' }]}>↑</Text>
+            <Text style={[styles.sendBtnText, { color: (!inputText.trim() || !(eventStatus === 'active' || eventStatus === 'finished')) ? theme.subtext : '#FFF' }]}>↑</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -679,4 +809,50 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   sendBtnText: { fontSize: 18, color: '#FFF', fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 20,
+    width: '85%',
+    maxWidth: 360,
+    alignItems: 'stretch',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalOption: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    alignItems: 'center',
+  },
+  modalOptionText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalCloseBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  modalCloseBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
 });
