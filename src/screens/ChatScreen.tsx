@@ -9,6 +9,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EventStatus, RootStackParamList, Message } from '../types';
 import ChatMessage from '../components/ChatMessage';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
@@ -92,11 +93,39 @@ export default function ChatScreen() {
   const { t } = useLanguage();
   const event = events.find(e => e.id === eventId);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
+
   // Redirect if event is deleted while looking at chat
   useEffect(() => {
     if (!eventsLoading && !event) {
-      Alert.alert('', t('eventDeleted') ?? 'Ивент был удален организатором');
-      navigation.navigate('ChatsList');
+      showAlert('', t('eventDeleted') ?? 'Ивент был удален организатором', () => {
+        navigation.navigate('ChatsList');
+      });
     }
   }, [event, eventsLoading]);
   const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
@@ -219,11 +248,11 @@ export default function ChatScreen() {
 
     const moderation = validateChatMessage(text);
     if (!moderation.ok) {
-      Alert.alert(t('moderationPanel'), moderation.message);
+      showAlert(t('moderationPanel'), moderation.message);
       return;
     }
     if (!joined && event?.createdBy !== user?.id && user?.role !== 'moderator' && user?.role !== 'admin') {
-      Alert.alert('', t('chatJoinFirst'));
+      showAlert('', t('chatJoinFirst'));
       return;
     }
 
@@ -233,7 +262,7 @@ export default function ChatScreen() {
       await sendMessage(text);
     } catch (e: any) {
       setInputText(text);
-      Alert.alert(t('messageSendError'), e.message ?? t('error'));
+      showAlert(t('messageSendError'), e.message ?? t('error'));
     }
   }
 
@@ -242,7 +271,7 @@ export default function ChatScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('', t('photoPickError'));
+      showAlert('', t('photoPickError'));
       return;
     }
 
@@ -265,7 +294,7 @@ export default function ChatScreen() {
       setInputText('');
       haptics.medium();
     } catch (e: any) {
-      Alert.alert(t('photoSendError'), e.message ?? t('error'));
+      showAlert(t('photoSendError'), e.message ?? t('error'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -288,19 +317,19 @@ export default function ChatScreen() {
         await leaveEvent(eventId, user.id);
         navigation.goBack();
       } catch (err: any) {
-        Alert.alert(t('error'), err.message ?? t('error'));
+        showAlert(t('error'), err.message ?? t('error'));
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('chatLeavePrompt')}?\n\n${t('chatLeaveText')}`);
-      if (confirmed) doLeave();
-    } else {
-      Alert.alert(t('chatLeavePrompt'), t('chatLeaveText'), [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('leaveBtn'), style: 'destructive', onPress: doLeave },
-      ]);
-    }
+    setConfirmModal({
+      visible: true,
+      title: t('chatLeavePrompt') ?? 'Покинуть чат?',
+      message: t('chatLeaveText') ?? 'Вы выйдете из этого чата и группы.',
+      confirmText: t('leaveBtn') ?? 'Выйти',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: doLeave,
+    });
   }
 
   async function changeEventStatus(status: EventStatus, cancelReason?: string) {
@@ -308,40 +337,42 @@ export default function ChatScreen() {
       await updateEventStatus(eventId, status, cancelReason);
       haptics.medium();
     } catch (e: any) {
-      Alert.alert(t('error'), e.message ?? t('error'));
+      showAlert(t('error'), e.message ?? t('error'));
     }
   }
 
   function cancelEvent() {
-    if (Platform.OS === 'ios') {
-      Alert.prompt(t('cancelReason'), t('cancelReason'), [
-        { text: t('back'), style: 'cancel' },
-        { text: t('cancel'), style: 'destructive', onPress: (reason?: string) => changeEventStatus('cancelled', reason || t('cancelNotice')) },
-      ]);
-      return;
-    }
-
-    changeEventStatus('cancelled', t('cancelNotice'));
+    setConfirmModal({
+      visible: true,
+      title: t('cancelReason') ?? 'Укажите причину отмены',
+      message: '',
+      confirmText: t('cancel') ?? 'Отменить ивент',
+      cancelText: t('back') ?? 'Назад',
+      isDestructive: true,
+      showInput: true,
+      inputPlaceholder: t('cancelReason') ?? 'Причина отмены...',
+      onConfirm: (reason) => {
+        changeEventStatus('cancelled', reason || t('cancelNotice'));
+      },
+    });
   }
 
   function handleRenameGroup() {
-    if (Platform.OS === 'web') {
-      const newTitle = window.prompt(t('enterNewGroupName') ?? 'Введите новое название группы:', eventTitle);
-      if (newTitle && newTitle.trim()) {
-        saveNewGroupName(newTitle.trim());
-      }
-    } else {
-      Alert.prompt(
-        t('renameGroupChat') ?? 'Переименовать группу',
-        t('enterNewGroupName') ?? 'Введите новое название группы:',
-        [
-          { text: t('cancel'), style: 'cancel' },
-          { text: 'OK', onPress: (newTitle?: string) => newTitle && newTitle.trim() && saveNewGroupName(newTitle.trim()) }
-        ],
-        'plain-text',
-        eventTitle
-      );
-    }
+    setConfirmModal({
+      visible: true,
+      title: t('renameGroupChat') ?? 'Переименовать группу',
+      message: '',
+      confirmText: 'OK',
+      cancelText: t('cancel') ?? 'Отмена',
+      showInput: true,
+      defaultValue: eventTitle,
+      inputPlaceholder: t('enterNewGroupName') ?? 'Введите новое название группы:',
+      onConfirm: (newTitle) => {
+        if (newTitle && newTitle.trim()) {
+          saveNewGroupName(newTitle.trim());
+        }
+      },
+    });
   }
 
   async function saveNewGroupName(newTitle: string) {
@@ -350,7 +381,7 @@ export default function ChatScreen() {
       navigation.setOptions({ title: newTitle });
       haptics.medium();
     } catch (e: any) {
-      Alert.alert(t('error'), e.message);
+      showAlert(t('error'), e.message);
     }
   }
 
@@ -360,13 +391,13 @@ export default function ChatScreen() {
 
   async function handleAI(forcedQuestion?: string) {
     if (!isActive) {
-      Alert.alert('', t('chatEmpty'));
+      showAlert('', t('chatEmpty'));
       return;
     }
     const question = forcedQuestion ?? (inputText.trim() || `${t('aiDefaultQuestion')} "${eventTitle}"`);
     const moderation = validateChatMessage(question);
     if (!moderation.ok) {
-      Alert.alert(t('moderationPanel'), moderation.message);
+      showAlert(t('moderationPanel'), moderation.message);
       return;
     }
     setInputText('');
@@ -432,23 +463,23 @@ export default function ChatScreen() {
       });
 
       if (error) {
-        Alert.alert(t('error'), error.message);
+        showAlert(t('error'), error.message);
         return;
       }
 
       haptics.medium();
-      Alert.alert(t('done'), t('done'));
+      showAlert(t('done'), t('done'));
     };
 
-    if (Platform.OS === 'web') {
-      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('reportTitle')}?\n\n${t('reportText')}`);
-      if (confirmed) doReport();
-    } else {
-      Alert.alert(t('reportTitle'), t('reportText'), [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('send'), style: 'destructive', onPress: doReport },
-      ]);
-    }
+    setConfirmModal({
+      visible: true,
+      title: t('reportTitle') ?? 'Пожаловаться?',
+      message: t('reportText') ?? 'Вы хотите пожаловаться на это сообщение?',
+      confirmText: t('send') ?? 'Отправить',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: doReport,
+    });
   }
 
   function deleteMessage(message: Message) {
@@ -461,7 +492,7 @@ export default function ChatScreen() {
         .eq('id', message.id);
 
       if (error) {
-        Alert.alert(t('error'), error.message);
+        showAlert(t('error'), error.message);
         return;
       }
 
@@ -469,15 +500,15 @@ export default function ChatScreen() {
       setMessages(prev => prev.filter(item => item.id !== message.id));
     };
 
-    if (Platform.OS === 'web') {
-      const confirmed = typeof window !== 'undefined' && window.confirm(`${t('deleteMsgTitle')}?\n\n${t('deleteMsgText')}`);
-      if (confirmed) doDeleteMsg();
-    } else {
-      Alert.alert(t('deleteMsgTitle'), t('deleteMsgText'), [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete'), style: 'destructive', onPress: doDeleteMsg },
-      ]);
-    }
+    setConfirmModal({
+      visible: true,
+      title: t('deleteMsgTitle') ?? 'Удалить сообщение?',
+      message: t('deleteMsgText') ?? 'Сообщение пропадет из чата у участников.',
+      confirmText: t('delete') ?? 'Удалить',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: doDeleteMsg,
+    });
   }
 
   return (
@@ -562,25 +593,24 @@ export default function ChatScreen() {
                       // 4. Finally delete the event
                       const { error } = await supabase.from('events').delete().eq('id', eventId);
                       if (error) {
-                        Alert.alert(t('error'), error.message);
+                        showAlert(t('error'), error.message);
                       } else {
                         haptics.medium();
                         navigation.navigate('ChatsList');
                       }
                     } catch (err: any) {
-                      Alert.alert(t('error'), err.message ?? t('error'));
+                      showAlert(t('error'), err.message ?? t('error'));
                     }
                   };
 
-                  if (Platform.OS === 'web') {
-                    const confirmed = typeof window !== 'undefined' && window.confirm(`${t('deleteEventPrompt')}\n\n${t('deleteEventText')}`);
-                    if (confirmed) doDelete();
-                  } else {
-                    Alert.alert(t('deleteEventPrompt'), t('deleteEventText'), [
-                      { text: t('cancel'), style: 'cancel' },
-                      { text: t('delete'), style: 'destructive', onPress: doDelete },
-                    ]);
-                  }
+                  setConfirmModal({
+                    visible: true,
+                    title: t('deleteEventPrompt') ?? 'Удалить ивент?',
+                    message: t('deleteEventText') ?? 'Ивент пропадет из приложения.',
+                    confirmText: t('delete') ?? 'Удалить',
+                    isDestructive: true,
+                    onConfirm: doDelete,
+                  });
                 }, 100);
               }}
             >
@@ -733,6 +763,25 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

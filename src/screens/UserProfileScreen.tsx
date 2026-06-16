@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 import { useLanguage } from '../context/LanguageContext';
 
 type ProfileRoute = RouteProp<RootStackParamList, 'UserProfile'>;
@@ -144,7 +145,7 @@ export default function UserProfileScreen() {
     });
 
     if (error) {
-      Alert.alert(t('friendRequestSendError'), error.message);
+      showAlert(t('friendRequestSendError'), error.message);
       return;
     }
 
@@ -161,7 +162,7 @@ export default function UserProfileScreen() {
       .eq('to_user_id', userId);
 
     if (error) {
-      Alert.alert(t('error'), error.message);
+      showAlert(t('error'), error.message);
       return;
     }
 
@@ -180,6 +181,18 @@ export default function UserProfileScreen() {
     setFriendStatus('none');
   }
 
+  function handleRemoveFriendPress() {
+    setConfirmModal({
+      visible: true,
+      title: t('removeFriend') ?? 'Удалить из друзей?',
+      message: `${t('removeFriend') ?? 'Удалить из друзей'}?`,
+      confirmText: t('friendsActionDelete') ?? 'Удалить',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: removeFriendRequest,
+    });
+  }
+
   async function acceptFriendRequest() {
     if (!currentUser || isOwnProfile) return;
 
@@ -190,12 +203,39 @@ export default function UserProfileScreen() {
       .eq('to_user_id', currentUser.id);
 
     if (error) {
-      Alert.alert(t('friendRequestAcceptError'), error.message);
+      showAlert(t('friendRequestAcceptError'), error.message);
       return;
     }
 
     setFriendStatus('accepted');
   }
+
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
 
   async function toggleBlock() {
     if (!currentUser || isOwnProfile) return;
@@ -204,34 +244,35 @@ export default function UserProfileScreen() {
       const { error } = await supabase.from('blocks').delete()
         .eq('blocker_id', currentUser.id).eq('blocked_id', userId);
       if (error) {
-        Alert.alert(t('unblockError'), error.message);
+        showAlert(t('unblockError'), error.message);
         return;
       }
       setIsBlocked(false);
       return;
     }
 
-    Alert.alert(t('blockUserTitle'), t('blockUserText'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('blockUserAction'),
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('blocks').insert({
-            blocker_id: currentUser.id,
-            blocked_id: userId,
-          });
+    setConfirmModal({
+      visible: true,
+      title: t('blockUserTitle') ?? 'Заблокировать пользователя?',
+      message: t('blockUserText') ?? 'Вы не будете видеть его сообщения и события.',
+      confirmText: t('blockUserAction') ?? 'Блокировать',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: async () => {
+        const { error } = await supabase.from('blocks').insert({
+          blocker_id: currentUser.id,
+          blocked_id: userId,
+        });
 
-          if (error) {
-            Alert.alert(t('blockError'), error.message);
-            return;
-          }
+        if (error) {
+          showAlert(t('blockError'), error.message);
+          return;
+        }
 
-          setIsBlocked(true);
-          setFriendStatus('none');
-        },
+        setIsBlocked(true);
+        setFriendStatus('none');
       },
-    ]);
+    });
   }
 
   async function banUser() {
@@ -248,34 +289,31 @@ export default function UserProfileScreen() {
   async function banWithReason(reason: string) {
     if (!currentUser || !canModerate || isOwnProfile) return;
 
-    Alert.alert(
-      t('banTitle') ?? 'Заблокировать пользователя?',
-      `${displayName}\n\nПричина: ${reason}`,
-      [
-        { text: t('cancel') ?? 'Отмена', style: 'cancel' },
-        {
-          text: t('ban') ?? 'Заблокировать',
-          style: 'destructive',
-          onPress: async () => {
-            closeReasonSheet();
-            setBanLoading(true);
-            const { error } = await supabase.from('user_bans').insert({
-              user_id: userId,
-              banned_by: currentUser.id,
-              reason,
-            });
-            setBanLoading(false);
+    setConfirmModal({
+      visible: true,
+      title: t('banTitle') ?? 'Заблокировать пользователя?',
+      message: `${displayName}\n\nПричина: ${reason}`,
+      confirmText: t('ban') ?? 'Заблокировать',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: async () => {
+        closeReasonSheet();
+        setBanLoading(true);
+        const { error } = await supabase.from('user_bans').insert({
+          user_id: userId,
+          banned_by: currentUser.id,
+          reason,
+        });
+        setBanLoading(false);
 
-            if (error) {
-              Alert.alert(t('banError'), error.message);
-              return;
-            }
-
-            setIsBanned(true);
-          }
+        if (error) {
+          showAlert(t('banError'), error.message);
+          return;
         }
-      ]
-    );
+
+        setIsBanned(true);
+      },
+    });
   }
 
   async function reportUser() {
@@ -291,7 +329,7 @@ export default function UserProfileScreen() {
     const trimmedDetails = detailsText.trim();
     const isOtherReason = reason === t('otherViolationReason');
     if (isOtherReason && trimmedDetails.length < 3) {
-      Alert.alert(t('reportSendError'), t('reportDetailsRequired'));
+      showAlert(t('reportSendError'), t('reportDetailsRequired'));
       return;
     }
 
@@ -316,37 +354,38 @@ export default function UserProfileScreen() {
       const isDuplicateOrRateLimited = error.message.toLowerCase().includes('row-level security')
         || error.message.toLowerCase().includes('violates')
         || error.message.toLowerCase().includes('duplicate');
-      Alert.alert(
+      showAlert(
         t('reportSendError'),
         isDuplicateOrRateLimited ? t('reportAlreadySentText') : error.message,
       );
       return;
     }
 
-    Alert.alert(t('reportSentTitle'), t('reportSentText'));
+    showAlert(t('reportSentTitle'), t('reportSentText'));
   }
 
   async function unbanUser() {
     if (!currentUser || !canModerate || isOwnProfile) return;
 
-    Alert.alert(t('unbanTitle'), `${displayName} ${t('unbanText')}`, [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('unban'),
-        onPress: async () => {
-          setBanLoading(true);
-          const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
-          setBanLoading(false);
+    setConfirmModal({
+      visible: true,
+      title: t('unbanTitle') ?? 'Разблокировать пользователя?',
+      message: `${displayName}\n\n${t('unbanText') ?? 'Доступ пользователя будет полностью восстановлен.'}`,
+      confirmText: t('unban') ?? 'Разблокировать',
+      cancelText: t('cancel') ?? 'Отмена',
+      onConfirm: async () => {
+        setBanLoading(true);
+        const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
+        setBanLoading(false);
 
-          if (error) {
-            Alert.alert(t('unbanError'), error.message);
-            return;
-          }
+        if (error) {
+          showAlert(t('unbanError'), error.message);
+          return;
+        }
 
-          setIsBanned(false);
-        },
+        setIsBanned(false);
       },
-    ]);
+    });
   }
 
   const displayRating = profile?.rating ?? 0;
@@ -418,14 +457,7 @@ export default function UserProfileScreen() {
                     friendStatus === 'incoming' ? acceptFriendRequest
                     : friendStatus === 'none' ? sendFriendRequest
                     : friendStatus === 'outgoing' ? cancelFriendRequest
-                    : friendStatus === 'accepted' ? () => Alert.alert(
-                        t('removeFriend'),
-                        t('removeFriend') + '?',
-                        [
-                          { text: t('cancel'), style: 'cancel' },
-                          { text: t('friendsActionDelete'), style: 'destructive', onPress: removeFriendRequest },
-                        ]
-                      )
+                    : friendStatus === 'accepted' ? handleRemoveFriendPress
                     : undefined
                   }
                   disabled={false}
@@ -651,6 +683,25 @@ export default function UserProfileScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
+      )}
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </SafeAreaView>
   );

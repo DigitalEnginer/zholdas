@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AppRole } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
 import { isSuperAdmin } from '../lib/adminAccess';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 
 interface ProfileRow {
   id: string;
@@ -22,6 +23,33 @@ export default function AdminRolesScreen() {
   const { theme, isDark } = useTheme();
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
 
   const shadowColor = isDark ? '#000' : '#0F172A';
   const shadowOpacity = isDark ? 0.35 : 0.05;
@@ -57,18 +85,18 @@ export default function AdminRolesScreen() {
 
   async function setRole(profile: ProfileRow, role: AppRole) {
     if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
+      showAlert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
       return;
     }
 
     if (profile.id === user?.id && role !== 'admin') {
-      Alert.alert('Нельзя снять admin с себя', 'Назначьте другого администратора и измените роль через Supabase.');
+      showAlert('Нельзя снять admin с себя', 'Назначьте другого администратора и измените роль через Supabase.');
       return;
     }
 
     const { error } = await supabase.from('profiles').update({ role }).eq('id', profile.id);
     if (error) {
-      Alert.alert('Не удалось изменить роль', error.message);
+      showAlert('Не удалось изменить роль', error.message);
       return;
     }
 
@@ -174,6 +202,25 @@ export default function AdminRolesScreen() {
           </View>
         ))}
       </ScrollView>
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

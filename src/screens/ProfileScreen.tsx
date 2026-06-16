@@ -14,6 +14,7 @@ import { categoryEmojis } from '../data/mockEvents';
 import AvatarImage from '../components/AvatarImage';
 import { supabase } from '../lib/supabase';
 import { isSuperAdmin } from '../lib/adminAccess';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -66,6 +67,33 @@ export default function ProfileScreen() {
   const [profileReviews, setProfileReviews] = React.useState<ProfileReview[]>([]);
   const [settingsPicker, setSettingsPicker] = React.useState<'theme' | 'language' | null>(null);
 
+  const [confirmModal, setConfirmModal] = React.useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
+
   const myEvents = user ? events.filter(e => isJoined(e.id, user.id)) : [];
 
   React.useEffect(() => {
@@ -92,16 +120,15 @@ export default function ProfileScreen() {
   }
 
   function handleLogout() {
-    if (Platform.OS === 'web') {
-      const confirmed = typeof window === 'undefined' ? true : window.confirm(t('logoutPrompt'));
-      if (confirmed) logout();
-      return;
-    }
-
-    Alert.alert(t('logoutPrompt'), t('logoutText'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('logoutBtnText'), style: 'destructive', onPress: logout },
-    ]);
+    setConfirmModal({
+      visible: true,
+      title: t('logoutPrompt') ?? 'Выйти?',
+      message: t('logoutText') ?? 'Вы уверены, что хотите выйти из аккаунта?',
+      confirmText: t('logoutBtnText') ?? 'Выйти',
+      cancelText: t('cancel') ?? 'Отмена',
+      isDestructive: true,
+      onConfirm: logout,
+    });
   }
 
   if (!user) return null;
@@ -154,7 +181,7 @@ export default function ProfileScreen() {
     ...(user.role === 'admin' ? [{ color: '#3B82F6', label: t('manageRoles'), onPress: () => navigation.navigate('AdminRoles') }] : []),
     { color: '#8B5CF6', label: `${t('settingTheme')}${themeTitle}`, onPress: () => setSettingsPicker('theme') },
     { color: '#64748B', label: `${t('settingLanguageTitle')}: ${languageTitle}`, onPress: () => setSettingsPicker('language') },
-    { color: '#D946EF', label: t('settingAbout'), onPress: () => Alert.alert('Жолдас', t('settingAboutAlert')) },
+    { color: '#D946EF', label: t('settingAbout'), onPress: () => showAlert('Жолдас', t('settingAboutAlert')) },
   ];
 
   return (
@@ -331,6 +358,25 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

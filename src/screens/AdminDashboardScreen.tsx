@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getSuperAdminEmailRequirement, isSuperAdmin } from '../lib/adminAccess';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type AdminTab = 'overview' | 'users' | 'events' | 'chats' | 'history' | 'tools';
@@ -140,6 +141,33 @@ export default function AdminDashboardScreen() {
   const [broadcastTitle, setBroadcastTitle] = React.useState('');
   const [broadcastBody, setBroadcastBody] = React.useState('');
   const [sendingBroadcast, setSendingBroadcast] = React.useState(false);
+
+  const [confirmModal, setConfirmModal] = React.useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
 
   // Focus states for search/text inputs
   const [userSearchFocused, setUserSearchFocused] = React.useState(false);
@@ -336,7 +364,7 @@ export default function AdminDashboardScreen() {
       .limit(80);
 
     if (error) {
-      Alert.alert('Не удалось открыть чат', error.message);
+      showAlert('Не удалось открыть чат', error.message);
       setMessages([]);
       return;
     }
@@ -401,7 +429,7 @@ export default function AdminDashboardScreen() {
       });
 
       if (error) {
-        Alert.alert('Не удалось изменить статус', error.message);
+        showAlert('Не удалось изменить статус', error.message);
         return;
       }
 
@@ -410,14 +438,14 @@ export default function AdminDashboardScreen() {
     };
 
     let statusLabel = status === 'active' ? 'активный' : status === 'finished' ? 'завершенный' : 'отмененный';
-    Alert.alert(
-      'Изменить статус ивента?',
-      `Ивент: "${event.title}"\nНовый статус: ${statusLabel.toUpperCase()}`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Изменить', onPress: doSetStatus },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Изменить статус ивента?',
+      message: `Ивент: "${event.title}"\nНовый статус: ${statusLabel.toUpperCase()}`,
+      confirmText: 'Изменить',
+      cancelText: 'Отмена',
+      onConfirm: doSetStatus,
+    });
   }
 
   function deleteEvent(event: AdminEvent) {
@@ -433,46 +461,47 @@ export default function AdminDashboardScreen() {
         // 4. Finally delete the event
         const { error } = await supabase.from('events').delete().eq('id', event.id);
         if (error) {
-          Alert.alert('Не удалось удалить', error.message);
+          showAlert('Не удалось удалить', error.message);
           return;
         }
         await logAdminAction('event_deleted', event.created_by, event.id, event.title);
         await loadAdminData();
       } catch (err: any) {
-        Alert.alert('Не удалось удалить', err.message ?? 'Неизвестная ошибка');
+        showAlert('Не удалось удалить', err.message ?? 'Неизвестная ошибка');
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmed = typeof window !== 'undefined' && window.confirm(`Удалить ивент?\n\n"${event.title}" пропадет из приложения.`);
-      if (confirmed) doDelete();
-    } else {
-      Alert.alert('Удалить ивент?', `"${event.title}" пропадет из приложения.`, [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Удалить', style: 'destructive', onPress: doDelete },
-      ]);
-    }
+    setConfirmModal({
+      visible: true,
+      title: 'Удалить ивент?',
+      message: `"${event.title}" пропадет из приложения.`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: doDelete,
+    });
   }
 
   async function deleteMessage(message: AdminMessage) {
     const doDelete = async () => {
       const { error } = await supabase.from('messages').delete().eq('id', message.id);
       if (error) {
-        Alert.alert('Не удалось удалить сообщение', error.message);
+        showAlert('Не удалось удалить сообщение', error.message);
         return;
       }
       await logAdminAction('message_deleted', message.user_id === 'ai' ? null : message.user_id, message.event_id, message.text?.slice(0, 250));
       setMessages(prev => prev.filter(item => item.id !== message.id));
     };
 
-    Alert.alert(
-      'Удалить сообщение?',
-      `Текст: "${message.text?.slice(0, 80)}"`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Удалить', style: 'destructive', onPress: doDelete },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Удалить сообщение?',
+      message: `Текст: "${message.text?.slice(0, 80)}"`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: doDelete,
+    });
   }
 
   function isProtectedPeerAdmin(profile: AdminProfile) {
@@ -485,19 +514,19 @@ export default function AdminDashboardScreen() {
 
   async function setUserRole(profile: AdminProfile, role: AppRole) {
     if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
+      showAlert('Нельзя менять другого admin', 'Второй admin защищен от изменений через интерфейс.');
       return;
     }
 
     if (profile.id === user?.id && role !== 'admin') {
-      Alert.alert('Нельзя снять admin с себя', 'Сначала назначьте другого super-admin.');
+      showAlert('Нельзя снять admin с себя', 'Сначала назначьте другого super-admin.');
       return;
     }
 
     const doSetRole = async () => {
       const { error } = await supabase.from('profiles').update({ role }).eq('id', profile.id);
       if (error) {
-        Alert.alert('Не удалось изменить роль', error.message);
+        showAlert('Не удалось изменить роль', error.message);
         return;
       }
 
@@ -506,14 +535,14 @@ export default function AdminDashboardScreen() {
       await loadAdminData();
     };
 
-    Alert.alert(
-      'Изменить роль пользователя?',
-      `Новая роль для ${profile.email || profile.name}: ${role.toUpperCase()}`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Изменить', onPress: doSetRole },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Изменить роль пользователя?',
+      message: `Новая роль для ${profile.email || profile.name}: ${role.toUpperCase()}`,
+      confirmText: 'Изменить',
+      cancelText: 'Отмена',
+      onConfirm: doSetRole,
+    });
   }
 
   async function banUser(profile: AdminProfile) {
@@ -527,7 +556,7 @@ export default function AdminDashboardScreen() {
       });
 
       if (error) {
-        Alert.alert('Не удалось забанить', error.message);
+        showAlert('Не удалось забанить', error.message);
         return;
       }
 
@@ -535,14 +564,15 @@ export default function AdminDashboardScreen() {
       await loadAdminData();
     };
 
-    Alert.alert(
-      'Заблокировать пользователя?',
-      `Вы уверены, что хотите забанить ${profile.email || profile.name}?`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Забанить', style: 'destructive', onPress: doBan },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Заблокировать пользователя?',
+      message: `Вы уверены, что хотите забанить ${profile.email || profile.name}?`,
+      confirmText: 'Забанить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: doBan,
+    });
   }
 
   async function unbanUser(profile: AdminProfile) {
@@ -551,7 +581,7 @@ export default function AdminDashboardScreen() {
     const doUnban = async () => {
       const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
       if (error) {
-        Alert.alert('Не удалось разбанить', error.message);
+        showAlert('Не удалось разбанить', error.message);
         return;
       }
 
@@ -559,64 +589,61 @@ export default function AdminDashboardScreen() {
       await loadAdminData();
     };
 
-    Alert.alert(
-      'Разблокировать пользователя?',
-      `Разблокировать доступ для ${profile.email || profile.name}?`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Разблокировать', onPress: doUnban },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Разблокировать пользователя?',
+      message: `Разблокировать доступ для ${profile.email || profile.name}?`,
+      confirmText: 'Разблокировать',
+      cancelText: 'Отмена',
+      onConfirm: doUnban,
+    });
   }
 
   function hardDeleteUser(profile: AdminProfile) {
     if (profile.id === user?.id) {
-      Alert.alert('Нельзя удалить себя', 'Это защита от случайной потери админ-доступа.');
+      showAlert('Нельзя удалить себя', 'Это защита от случайной потери админ-доступа.');
       return;
     }
 
     if (isProtectedPeerAdmin(profile)) {
-      Alert.alert('Нельзя удалить другого admin', 'Admin-аккаунты удаляем только вручную через Supabase.');
+      showAlert('Нельзя удалить другого admin', 'Admin-аккаунты удаляем только вручную через Supabase.');
       return;
     }
 
-    Alert.alert(
-      'Удалить пользователя навсегда?',
-      `${profile.email || profile.name}\n\nБудут удалены профиль, auth-аккаунт, storage-файлы, сообщения, участия, жалобы, баны и созданные им ивенты.`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            const accessToken = session?.access_token;
+    setConfirmModal({
+      visible: true,
+      title: 'Удалить пользователя навсегда?',
+      message: `${profile.email || profile.name}\n\nБудут удалены профиль, auth-аккаунт, storage-файлы, сообщения, участия, жалобы, баны и созданные им ивенты.`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
 
-            if (!accessToken) {
-              Alert.alert('Нет сессии', 'Войдите заново в аккаунт администратора.');
-              return;
-            }
+        if (!accessToken) {
+          showAlert('Нет сессии', 'Войдите заново в аккаунт администратора.');
+          return;
+        }
 
-            const response = await fetch(`${BACKEND_URL}/admin/users/${profile.id}`, {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            });
-
-            if (!response.ok) {
-              const payload = await response.json().catch(() => null);
-              Alert.alert('Не удалось удалить', payload?.detail ?? 'Backend вернул ошибку');
-              return;
-            }
-
-            setSelectedProfile(null);
-            setUserDetails(null);
-            await loadAdminData();
+        const response = await fetch(`${BACKEND_URL}/admin/users/${profile.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
           },
-        },
-      ],
-    );
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          showAlert('Не удалось удалить', payload?.detail ?? 'Backend вернул ошибку');
+          return;
+        }
+
+        setSelectedProfile(null);
+        setUserDetails(null);
+        await loadAdminData();
+      },
+    });
   }
 
   async function updateSetting(setting: SystemSetting, value: string) {
@@ -626,7 +653,7 @@ export default function AdminDashboardScreen() {
       .eq('key', setting.key);
 
     if (error) {
-      Alert.alert('Не удалось сохранить настройку', error.message);
+      showAlert('Не удалось сохранить настройку', error.message);
       return;
     }
 
@@ -638,7 +665,7 @@ export default function AdminDashboardScreen() {
     const title = broadcastTitle.trim();
     const body = broadcastBody.trim();
     if (title.length < 3) {
-      Alert.alert('Нужен заголовок', 'Минимум 3 символа.');
+      showAlert('Нужен заголовок', 'Минимум 3 символа.');
       return;
     }
 
@@ -651,24 +678,25 @@ export default function AdminDashboardScreen() {
       setSendingBroadcast(false);
 
       if (error) {
-        Alert.alert('Не удалось отправить', error.message);
+        showAlert('Не удалось отправить', error.message);
         return;
       }
 
       setBroadcastTitle('');
       setBroadcastBody('');
-      Alert.alert('Готово', `Уведомление отправлено: ${data ?? 0} пользователям.`);
+      showAlert('Готово', `Уведомление отправлено: ${data ?? 0} пользователям.`);
       await loadAdminData();
     };
 
-    Alert.alert(
-      'Отправить объявление всем?',
-      `Заголовок: "${title}"\nТекст: "${body}"\n\nЭто уведомление получат все пользователи приложения.`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { text: 'Отправить', style: 'destructive', onPress: doBroadcast },
-      ]
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Отправить объявление всем?',
+      message: `Заголовок: "${title}"\nТекст: "${body}"\n\nЭто уведомление получат все пользователи приложения.`,
+      confirmText: 'Отправить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: doBroadcast,
+    });
   }
 
   if (!isAdmin) {
@@ -1261,6 +1289,25 @@ export default function AdminDashboardScreen() {
           </View>
         )}
       </ScrollView>
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import AvatarImage from '../components/AvatarImage';
+import CustomConfirmModal from '../components/CustomConfirmModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
@@ -97,6 +98,32 @@ export default function ModeratorDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canModerate = user?.role === 'moderator' || user?.role === 'admin';
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    showCancel?: boolean;
+    showInput?: boolean;
+    inputPlaceholder?: string;
+    defaultValue?: string;
+    onConfirm: (text?: string) => void;
+  } | null>(null);
+
+  const showAlert = (title?: string, message?: string, onConfirm?: () => void) => {
+    setConfirmModal({
+      visible: true,
+      title: title ?? '',
+      message: message ?? '',
+      confirmText: 'OK',
+      showCancel: false,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+      },
+    });
+  };
 
   const shadowColor = isDark ? '#000' : '#0F172A';
   const shadowOpacity = isDark ? 0.35 : 0.05;
@@ -207,7 +234,7 @@ export default function ModeratorDashboardScreen() {
   async function updateReportStatus(reportId: string, status: ReportStatus) {
     const { error } = await supabase.from('reports').update({ status }).eq('id', reportId);
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      showAlert('Ошибка', error.message);
       return;
     }
     setReports(prev => prev.map(r => r.id === reportId ? { ...r, status } : r));
@@ -217,13 +244,14 @@ export default function ModeratorDashboardScreen() {
     const title = status === 'reviewed' ? 'Закрыть жалобу?' : 'Отклонить жалобу?';
     const text = status === 'reviewed' ? 'Жалоба будет отмечена как рассмотренная.' : 'Жалоба будет отклонена.';
 
-    Alert.alert(title, text, [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: status === 'reviewed' ? 'Закрыть' : 'Отклонить',
-        onPress: () => updateReportStatus(report.id, status)
-      }
-    ]);
+    setConfirmModal({
+      visible: true,
+      title,
+      message: text,
+      confirmText: status === 'reviewed' ? 'Закрыть' : 'Отклонить',
+      cancelText: 'Отмена',
+      onConfirm: () => updateReportStatus(report.id, status),
+    });
   }
 
   function openProfile(profile?: ProfileSummary) {
@@ -235,76 +263,79 @@ export default function ModeratorDashboardScreen() {
     if (!user) return;
 
     if (bannedIds.has(report.reported_user_id)) {
-      Alert.alert('Уже забанен', 'Этот пользователь уже находится в бане.');
+      showAlert('Уже забанен', 'Этот пользователь уже находится в бане.');
       return;
     }
 
-    Alert.alert('Забанить и закрыть жалобу?', report.reason, [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Бан + закрыть',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('user_bans').insert({
-            user_id: report.reported_user_id,
-            banned_by: user.id,
-            reason: `Жалоба: ${report.reason}`,
-          });
+    setConfirmModal({
+      visible: true,
+      title: 'Забанить и закрыть жалобу?',
+      message: report.reason,
+      confirmText: 'Бан + закрыть',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: async () => {
+        const { error } = await supabase.from('user_bans').insert({
+          user_id: report.reported_user_id,
+          banned_by: user.id,
+          reason: `Жалоба: ${report.reason}`,
+        });
 
-          if (error) {
-            Alert.alert('Не удалось забанить', error.message);
-            return;
-          }
+        if (error) {
+          showAlert('Не удалось забанить', error.message);
+          return;
+        }
 
-          await updateReportStatus(report.id, 'reviewed');
-          await loadModerationData();
-        },
+        await updateReportStatus(report.id, 'reviewed');
+        await loadModerationData();
       },
-    ]);
+    });
   }
 
   async function unbanUser(userId: string) {
     const profile = profiles[userId];
     const name = profile?.name ?? 'Пользователь';
 
-    Alert.alert('Разблокировать пользователя?', name, [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Разблокировать',
-        onPress: async () => {
-          const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
-          if (error) {
-            Alert.alert('Не удалось разбанить', error.message);
-            return;
-          }
-          await loadModerationData();
+    setConfirmModal({
+      visible: true,
+      title: 'Разблокировать пользователя?',
+      message: name,
+      confirmText: 'Разблокировать',
+      cancelText: 'Отмена',
+      onConfirm: async () => {
+        const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
+        if (error) {
+          showAlert('Не удалось разбанить', error.message);
+          return;
         }
-      }
-    ]);
+        await loadModerationData();
+      },
+    });
   }
 
   function deleteReportedMessage(report: ReportItem) {
     const messageId = getDetailValue(report.details, 'message_id');
     if (!messageId) {
-      Alert.alert('Нет id сообщения', 'Эта жалоба была создана до сохранения message_id.');
+      showAlert('Нет id сообщения', 'Эта жалоба была создана до сохранения message_id.');
       return;
     }
 
-    Alert.alert('Удалить сообщение?', 'Сообщение пропадет из чата у участников.', [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Удалить',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('messages').delete().eq('id', messageId);
-          if (error) {
-            Alert.alert('Не удалось удалить', error.message);
-            return;
-          }
-          await updateReportStatus(report.id, 'reviewed');
-        },
+    setConfirmModal({
+      visible: true,
+      title: 'Удалить сообщение?',
+      message: 'Сообщение пропадет из чата у участников.',
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      isDestructive: true,
+      onConfirm: async () => {
+        const { error } = await supabase.from('messages').delete().eq('id', messageId);
+        if (error) {
+          showAlert('Не удалось удалить', error.message);
+          return;
+        }
+        await updateReportStatus(report.id, 'reviewed');
       },
-    ]);
+    });
   }
 
   if (!canModerate) {
@@ -698,6 +729,25 @@ export default function ModeratorDashboardScreen() {
           </View>
         )}
       </ScrollView>
+      {confirmModal && (
+        <CustomConfirmModal
+          visible={confirmModal.visible}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          isDestructive={confirmModal.isDestructive}
+          showCancel={confirmModal.showCancel}
+          showInput={confirmModal.showInput}
+          inputPlaceholder={confirmModal.inputPlaceholder}
+          defaultValue={confirmModal.defaultValue}
+          onConfirm={(text) => {
+            confirmModal.onConfirm(text);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
