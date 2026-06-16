@@ -29,7 +29,7 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 BACKEND_CORS_ORIGINS = os.getenv(
     "BACKEND_CORS_ORIGINS",
-    "http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081,https://zholdas.vercel.app",
+    "http://localhost:8081,http://localhost:19006,http://localhost:3000,http://127.0.0.1:8081,https://zholdas.vercel.app,https://zholdas.app,https://www.zholdas.app",
 )
 BACKEND_CORS_ORIGIN_REGEX = os.getenv("BACKEND_CORS_ORIGIN_REGEX", r"https://.*\.vercel\.app")
 
