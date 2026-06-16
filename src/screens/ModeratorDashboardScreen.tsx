@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, RefreshControl, SafeAreaView, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +14,8 @@ import AvatarImage from '../components/AvatarImage';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
 type DashboardTab = 'reports' | 'bans' | 'history';
+type ReportStatusFilter = 'all' | ReportStatus;
+type ReportTypeFilter = 'all' | 'spam' | 'insults' | 'unsafe' | 'other';
 
 interface ReportItem {
   id: string;
@@ -68,6 +70,18 @@ function isMessageReport(report: ReportItem) {
   return getDetailValue(report.details, 'type') === 'message' || report.reason.toLowerCase().includes('сообщ');
 }
 
+function normalizeText(value: string | null | undefined) {
+  return (value ?? '').toLowerCase().trim();
+}
+
+function getReportType(report: ReportItem): ReportTypeFilter {
+  const category = normalizeText(getDetailValue(report.details, 'category') ?? report.reason);
+  if (category.includes('спам') || category.includes('spam')) return 'spam';
+  if (category.includes('оскорб') || category.includes('қорлау') || category.includes('insult')) return 'insults';
+  if (category.includes('небезопас') || category.includes('қауіп') || category.includes('unsafe')) return 'unsafe';
+  return 'other';
+}
+
 export default function ModeratorDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
@@ -77,6 +91,9 @@ export default function ModeratorDashboardScreen() {
   const [actions, setActions] = useState<ModerationAction[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileSummary>>({});
   const [activeTab, setActiveTab] = useState<DashboardTab>('reports');
+  const [statusFilter, setStatusFilter] = useState<ReportStatusFilter>('pending');
+  const [typeFilter, setTypeFilter] = useState<ReportTypeFilter>('all');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canModerate = user?.role === 'moderator' || user?.role === 'admin';
@@ -90,6 +107,38 @@ export default function ModeratorDashboardScreen() {
 
   const bannedIds = useMemo(() => new Set(bans.map(b => b.user_id)), [bans]);
   const pendingReports = reports.filter(r => r.status === 'pending');
+  const filteredReports = useMemo(() => {
+    const query = normalizeText(search);
+
+    return reports.filter(report => {
+      if (statusFilter !== 'all' && report.status !== statusFilter) return false;
+      if (typeFilter !== 'all' && getReportType(report) !== typeFilter) return false;
+
+      if (!query) return true;
+
+      const reporter = profiles[report.reporter_id];
+      const target = profiles[report.reported_user_id];
+      const haystack = [
+        report.reason,
+        report.details,
+        getDetailValue(report.details, 'category'),
+        getDetailValue(report.details, 'description'),
+        reporter?.name,
+        target?.name,
+        report.reporter_id,
+        report.reported_user_id,
+      ].map(normalizeText).join(' ');
+
+      return haystack.includes(query);
+    });
+  }, [profiles, reports, search, statusFilter, typeFilter]);
+  const reportTypeCounts = useMemo(() => ({
+    all: reports.length,
+    spam: reports.filter(r => getReportType(r) === 'spam').length,
+    insults: reports.filter(r => getReportType(r) === 'insults').length,
+    unsafe: reports.filter(r => getReportType(r) === 'unsafe').length,
+    other: reports.filter(r => getReportType(r) === 'other').length,
+  }), [reports]);
 
   async function loadModerationData() {
     if (!canModerate) {
@@ -177,10 +226,10 @@ export default function ModeratorDashboardScreen() {
       return;
     }
 
-    Alert.alert('Забанить пользователя?', report.reason, [
+    Alert.alert('Забанить и закрыть жалобу?', report.reason, [
       { text: 'Отмена', style: 'cancel' },
       {
-        text: 'Забанить',
+        text: 'Бан + закрыть',
         style: 'destructive',
         onPress: async () => {
           const { error } = await supabase.from('user_bans').insert({
@@ -309,11 +358,86 @@ export default function ModeratorDashboardScreen() {
 
         {activeTab === 'reports' && (
           <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor, shadowOpacity }]}>
-            <Text style={[styles.sectionTitle, { color: theme.subtext }]}>Очередь жалоб</Text>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: theme.subtext, paddingHorizontal: 0, paddingTop: 0 }]}>Очередь жалоб</Text>
+                <Text style={[styles.filterResult, { color: theme.subtext }]}>
+                  Показано {filteredReports.length} из {reports.length}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.resetBtn, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                onPress={() => { setStatusFilter('pending'); setTypeFilter('all'); setSearch(''); }}
+              >
+                <Text style={[styles.resetBtnText, { color: theme.text }]}>Сброс</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filterBlock}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+                {[
+                  { key: 'pending', label: 'Новые', count: pendingReports.length },
+                  { key: 'reviewed', label: 'Закрытые', count: reports.filter(r => r.status === 'reviewed').length },
+                  { key: 'dismissed', label: 'Отклоненные', count: reports.filter(r => r.status === 'dismissed').length },
+                  { key: 'all', label: 'Все', count: reports.length },
+                ].map(item => {
+                  const active = statusFilter === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      style={[
+                        styles.filterChip,
+                        { backgroundColor: active ? theme.accent : theme.inputBg, borderColor: active ? theme.accent : theme.border },
+                      ]}
+                      onPress={() => setStatusFilter(item.key as ReportStatusFilter)}
+                    >
+                      <Text style={[styles.filterChipText, { color: active ? '#FFF' : theme.text }]}>{item.label}</Text>
+                      <Text style={[styles.filterChipCount, { color: active ? '#FFF' : theme.subtext }]}>{item.count}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+                {[
+                  { key: 'all', label: 'Все типы', count: reportTypeCounts.all },
+                  { key: 'spam', label: 'Спам', count: reportTypeCounts.spam },
+                  { key: 'insults', label: 'Оскорбления', count: reportTypeCounts.insults },
+                  { key: 'unsafe', label: 'Небезопасное', count: reportTypeCounts.unsafe },
+                  { key: 'other', label: 'Другое', count: reportTypeCounts.other },
+                ].map(item => {
+                  const active = typeFilter === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      style={[
+                        styles.typeChip,
+                        { backgroundColor: active ? theme.accentLight : theme.card, borderColor: active ? theme.accent : theme.border },
+                      ]}
+                      onPress={() => setTypeFilter(item.key as ReportTypeFilter)}
+                    >
+                      <Text style={[styles.typeChipText, { color: active ? theme.accent : theme.text }]}>{item.label}</Text>
+                      <Text style={[styles.typeChipCount, { color: active ? theme.accent : theme.subtext }]}>{item.count}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Поиск по пользователю, причине или ID"
+                placeholderTextColor={theme.subtext}
+                style={[styles.searchInput, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]}
+              />
+            </View>
+
             {reports.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.subtext, paddingVertical: 16 }]}>Жалоб пока нет</Text>
+            ) : filteredReports.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.subtext, paddingVertical: 16 }]}>По этим фильтрам жалоб нет</Text>
             ) : (
-              reports.map(report => {
+              filteredReports.map(report => {
                 const reporter = profiles[report.reporter_id];
                 const target = profiles[report.reported_user_id];
                 const isPending = report.status === 'pending';
@@ -424,7 +548,7 @@ export default function ModeratorDashboardScreen() {
                             disabled={bannedIds.has(report.reported_user_id)}
                           >
                             <Text style={[styles.actionText, { color: bannedIds.has(report.reported_user_id) ? theme.subtext : theme.danger }]}>
-                              {bannedIds.has(report.reported_user_id) ? 'Уже бан' : 'Бан'}
+                              {bannedIds.has(report.reported_user_id) ? 'Уже бан' : 'Бан + закрыть'}
                             </Text>
                           </TouchableOpacity>
                           {isMessageReport(report) && (
@@ -577,6 +701,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+  filterResult: { fontSize: 12, fontWeight: '600', marginTop: 3 },
+  resetBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  resetBtnText: { fontSize: 12, fontWeight: '800' },
+  filterBlock: { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
+  chipsRow: { gap: 8, paddingRight: 8 },
+  filterChip: {
+    minHeight: 38,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '800' },
+  filterChipCount: { fontSize: 12, fontWeight: '900' },
+  typeChip: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  typeChipText: { fontSize: 12, fontWeight: '800' },
+  typeChipCount: { fontSize: 11, fontWeight: '900' },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyText: { paddingHorizontal: 16, paddingBottom: 16, fontSize: 14, textAlign: 'center' },
   reportCard: { padding: 16, borderTopWidth: 1 },
