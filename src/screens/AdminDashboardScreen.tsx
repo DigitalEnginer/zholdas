@@ -393,19 +393,31 @@ export default function AdminDashboardScreen() {
   }
 
   async function setEventStatus(event: AdminEvent, status: EventStatus) {
-    const { error } = await supabase.rpc('set_event_status', {
-      p_event_id: event.id,
-      p_status: status,
-      p_cancel_reason: status === 'cancelled' ? 'Закрыто администратором' : null,
-    });
+    const doSetStatus = async () => {
+      const { error } = await supabase.rpc('set_event_status', {
+        p_event_id: event.id,
+        p_status: status,
+        p_cancel_reason: status === 'cancelled' ? 'Закрыто администратором' : null,
+      });
 
-    if (error) {
-      Alert.alert('Не удалось изменить статус', error.message);
-      return;
-    }
+      if (error) {
+        Alert.alert('Не удалось изменить статус', error.message);
+        return;
+      }
 
-    await logAdminAction('event_status_changed', null, event.id, `${event.status}->${status}: ${event.title}`);
-    await loadAdminData();
+      await logAdminAction('event_status_changed', null, event.id, `${event.status}->${status}: ${event.title}`);
+      await loadAdminData();
+    };
+
+    let statusLabel = status === 'active' ? 'активный' : status === 'finished' ? 'завершенный' : 'отмененный';
+    Alert.alert(
+      'Изменить статус ивента?',
+      `Ивент: "${event.title}"\nНовый статус: ${statusLabel.toUpperCase()}`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Изменить', onPress: doSetStatus },
+      ]
+    );
   }
 
   function deleteEvent(event: AdminEvent) {
@@ -443,13 +455,24 @@ export default function AdminDashboardScreen() {
   }
 
   async function deleteMessage(message: AdminMessage) {
-    const { error } = await supabase.from('messages').delete().eq('id', message.id);
-    if (error) {
-      Alert.alert('Не удалось удалить сообщение', error.message);
-      return;
-    }
-    await logAdminAction('message_deleted', message.user_id === 'ai' ? null : message.user_id, message.event_id, message.text?.slice(0, 250));
-    setMessages(prev => prev.filter(item => item.id !== message.id));
+    const doDelete = async () => {
+      const { error } = await supabase.from('messages').delete().eq('id', message.id);
+      if (error) {
+        Alert.alert('Не удалось удалить сообщение', error.message);
+        return;
+      }
+      await logAdminAction('message_deleted', message.user_id === 'ai' ? null : message.user_id, message.event_id, message.text?.slice(0, 250));
+      setMessages(prev => prev.filter(item => item.id !== message.id));
+    };
+
+    Alert.alert(
+      'Удалить сообщение?',
+      `Текст: "${message.text?.slice(0, 80)}"`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Удалить', style: 'destructive', onPress: doDelete },
+      ]
+    );
   }
 
   function isProtectedPeerAdmin(profile: AdminProfile) {
@@ -471,46 +494,79 @@ export default function AdminDashboardScreen() {
       return;
     }
 
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', profile.id);
-    if (error) {
-      Alert.alert('Не удалось изменить роль', error.message);
-      return;
-    }
+    const doSetRole = async () => {
+      const { error } = await supabase.from('profiles').update({ role }).eq('id', profile.id);
+      if (error) {
+        Alert.alert('Не удалось изменить роль', error.message);
+        return;
+      }
 
-    await logAdminAction('role_changed', profile.id, null, `${profile.email || profile.id}: ${profile.role}->${role}`);
-    setProfiles(prev => prev.map(item => item.id === profile.id ? { ...item, role } : item));
-    await loadAdminData();
+      await logAdminAction('role_changed', profile.id, null, `${profile.email || profile.id}: ${profile.role}->${role}`);
+      setProfiles(prev => prev.map(item => item.id === profile.id ? { ...item, role } : item));
+      await loadAdminData();
+    };
+
+    Alert.alert(
+      'Изменить роль пользователя?',
+      `Новая роль для ${profile.email || profile.name}: ${role.toUpperCase()}`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Изменить', onPress: doSetRole },
+      ]
+    );
   }
 
   async function banUser(profile: AdminProfile) {
     if (!user || !canManageProfile(profile)) return;
 
-    const { error } = await supabase.from('user_bans').insert({
-      user_id: profile.id,
-      banned_by: user.id,
-      reason: 'Заблокировано super-admin',
-    });
+    const doBan = async () => {
+      const { error } = await supabase.from('user_bans').insert({
+        user_id: profile.id,
+        banned_by: user.id,
+        reason: 'Заблокировано super-admin',
+      });
 
-    if (error) {
-      Alert.alert('Не удалось забанить', error.message);
-      return;
-    }
+      if (error) {
+        Alert.alert('Не удалось забанить', error.message);
+        return;
+      }
 
-    await logAdminAction('user_banned', profile.id, null, profile.email || profile.name);
-    await loadAdminData();
+      await logAdminAction('user_banned', profile.id, null, profile.email || profile.name);
+      await loadAdminData();
+    };
+
+    Alert.alert(
+      'Заблокировать пользователя?',
+      `Вы уверены, что хотите забанить ${profile.email || profile.name}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Забанить', style: 'destructive', onPress: doBan },
+      ]
+    );
   }
 
   async function unbanUser(profile: AdminProfile) {
     if (!canManageProfile(profile)) return;
 
-    const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
-    if (error) {
-      Alert.alert('Не удалось разбанить', error.message);
-      return;
-    }
+    const doUnban = async () => {
+      const { error } = await supabase.from('user_bans').delete().eq('user_id', profile.id);
+      if (error) {
+        Alert.alert('Не удалось разбанить', error.message);
+        return;
+      }
 
-    await logAdminAction('user_unbanned', profile.id, null, profile.email || profile.name);
-    await loadAdminData();
+      await logAdminAction('user_unbanned', profile.id, null, profile.email || profile.name);
+      await loadAdminData();
+    };
+
+    Alert.alert(
+      'Разблокировать пользователя?',
+      `Разблокировать доступ для ${profile.email || profile.name}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Разблокировать', onPress: doUnban },
+      ]
+    );
   }
 
   function hardDeleteUser(profile: AdminProfile) {
@@ -586,22 +642,33 @@ export default function AdminDashboardScreen() {
       return;
     }
 
-    setSendingBroadcast(true);
-    const { data, error } = await supabase.rpc('create_admin_broadcast', {
-      p_title: title,
-      p_body: body,
-    });
-    setSendingBroadcast(false);
+    const doBroadcast = async () => {
+      setSendingBroadcast(true);
+      const { data, error } = await supabase.rpc('create_admin_broadcast', {
+        p_title: title,
+        p_body: body,
+      });
+      setSendingBroadcast(false);
 
-    if (error) {
-      Alert.alert('Не удалось отправить', error.message);
-      return;
-    }
+      if (error) {
+        Alert.alert('Не удалось отправить', error.message);
+        return;
+      }
 
-    setBroadcastTitle('');
-    setBroadcastBody('');
-    Alert.alert('Готово', `Уведомление отправлено: ${data ?? 0} пользователям.`);
-    await loadAdminData();
+      setBroadcastTitle('');
+      setBroadcastBody('');
+      Alert.alert('Готово', `Уведомление отправлено: ${data ?? 0} пользователям.`);
+      await loadAdminData();
+    };
+
+    Alert.alert(
+      'Отправить объявление всем?',
+      `Заголовок: "${title}"\nТекст: "${body}"\n\nЭто уведомление получат все пользователи приложения.`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Отправить', style: 'destructive', onPress: doBroadcast },
+      ]
+    );
   }
 
   if (!isAdmin) {

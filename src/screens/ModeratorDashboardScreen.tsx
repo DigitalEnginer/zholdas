@@ -213,6 +213,19 @@ export default function ModeratorDashboardScreen() {
     setReports(prev => prev.map(r => r.id === reportId ? { ...r, status } : r));
   }
 
+  function confirmUpdateReportStatus(report: ReportItem, status: ReportStatus) {
+    const title = status === 'reviewed' ? 'Закрыть жалобу?' : 'Отклонить жалобу?';
+    const text = status === 'reviewed' ? 'Жалоба будет отмечена как рассмотренная.' : 'Жалоба будет отклонена.';
+
+    Alert.alert(title, text, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: status === 'reviewed' ? 'Закрыть' : 'Отклонить',
+        onPress: () => updateReportStatus(report.id, status)
+      }
+    ]);
+  }
+
   function openProfile(profile?: ProfileSummary) {
     if (!profile) return;
     navigation.navigate('UserProfile', { userId: profile.id, userName: profile.name, userAvatar: profile.avatar });
@@ -251,12 +264,23 @@ export default function ModeratorDashboardScreen() {
   }
 
   async function unbanUser(userId: string) {
-    const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
-    if (error) {
-      Alert.alert('Не удалось разбанить', error.message);
-      return;
-    }
-    await loadModerationData();
+    const profile = profiles[userId];
+    const name = profile?.name ?? 'Пользователь';
+
+    Alert.alert('Разблокировать пользователя?', name, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Разблокировать',
+        onPress: async () => {
+          const { error } = await supabase.from('user_bans').delete().eq('user_id', userId);
+          if (error) {
+            Alert.alert('Не удалось разбанить', error.message);
+            return;
+          }
+          await loadModerationData();
+        }
+      }
+    ]);
   }
 
   function deleteReportedMessage(report: ReportItem) {
@@ -575,7 +599,7 @@ export default function ModeratorDashboardScreen() {
                                 borderWidth: 1,
                               }
                             ]}
-                            onPress={() => updateReportStatus(report.id, 'reviewed')}
+                            onPress={() => confirmUpdateReportStatus(report, 'reviewed')}
                           >
                             <Text style={[styles.actionText, { color: theme.success }]}>Закрыть</Text>
                           </TouchableOpacity>
@@ -588,7 +612,7 @@ export default function ModeratorDashboardScreen() {
                                 borderWidth: 1,
                               }
                             ]}
-                            onPress={() => updateReportStatus(report.id, 'dismissed')}
+                            onPress={() => confirmUpdateReportStatus(report, 'dismissed')}
                           >
                             <Text style={[styles.actionText, { color: theme.text }]}>Отклонить</Text>
                           </TouchableOpacity>

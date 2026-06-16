@@ -183,15 +183,19 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then
-    if old.role is distinct from new.role then
+  -- Only admins can change user roles
+  if old.role is distinct from new.role then
+    if not (public.is_admin() or (select auth.uid()) is null) then
       raise exception 'Only admins can change roles';
     end if;
+  end if;
 
-    if old.is_banned is distinct from new.is_banned
-      or old.banned_at is distinct from new.banned_at
-      or old.banned_by is distinct from new.banned_by
-      or old.ban_reason is distinct from new.ban_reason then
+  -- Ban fields can be updated by moderators, admins, or system/service_role (auth.uid() IS NULL)
+  if old.is_banned is distinct from new.is_banned
+    or old.banned_at is distinct from new.banned_at
+    or old.banned_by is distinct from new.banned_by
+    or old.ban_reason is distinct from new.ban_reason then
+    if not (public.is_moderator_or_admin() or (select auth.uid()) is null) then
       raise exception 'Ban fields are managed by moderation actions';
     end if;
   end if;

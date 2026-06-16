@@ -248,21 +248,34 @@ export default function UserProfileScreen() {
   async function banWithReason(reason: string) {
     if (!currentUser || !canModerate || isOwnProfile) return;
 
-    closeReasonSheet();
-    setBanLoading(true);
-    const { error } = await supabase.from('user_bans').insert({
-      user_id: userId,
-      banned_by: currentUser.id,
-      reason,
-    });
-    setBanLoading(false);
+    Alert.alert(
+      t('banTitle') ?? 'Заблокировать пользователя?',
+      `${displayName}\n\nПричина: ${reason}`,
+      [
+        { text: t('cancel') ?? 'Отмена', style: 'cancel' },
+        {
+          text: t('ban') ?? 'Заблокировать',
+          style: 'destructive',
+          onPress: async () => {
+            closeReasonSheet();
+            setBanLoading(true);
+            const { error } = await supabase.from('user_bans').insert({
+              user_id: userId,
+              banned_by: currentUser.id,
+              reason,
+            });
+            setBanLoading(false);
 
-    if (error) {
-      Alert.alert(t('banError'), error.message);
-      return;
-    }
+            if (error) {
+              Alert.alert(t('banError'), error.message);
+              return;
+            }
 
-    setIsBanned(true);
+            setIsBanned(true);
+          }
+        }
+      ]
+    );
   }
 
   async function reportUser() {
