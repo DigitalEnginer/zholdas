@@ -9,7 +9,7 @@ import { EventStatus, RootStackParamList } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventsContext';
 import { useTheme } from '../context/ThemeContext';
-import { eventStatusColors } from '../data/mockEvents';
+import { categoryEmojis, eventStatusColors } from '../data/mockEvents';
 import { getDistance, openRoute, useLocation } from '../hooks/useLocation';
 import AvatarImage from '../components/AvatarImage';
 import { supabase } from '../lib/supabase';
@@ -24,7 +24,7 @@ export default function EventDetailsScreen() {
   const { eventId } = route.params;
   const { user } = useAuth();
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { events, joinEvent, leaveEvent, isJoined, updateEventStatus } = useEvents();
   const userLocation = useLocation();
   const event = events.find(e => e.id === eventId);
@@ -62,11 +62,29 @@ export default function EventDetailsScreen() {
   const canManage = !!user && (currentEvent.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const isActive = status === 'active';
   const statusText = t(status === 'finished' ? 'statusFinished' : status === 'cancelled' ? 'statusCancelled' : 'statusActive');
+  const isFull = event.participantsCount >= event.maxParticipants;
+  const spotsLeft = Math.max(0, event.maxParticipants - event.participantsCount);
+  const progress = Math.min(100, Math.max(6, (event.participantsCount / event.maxParticipants) * 100));
+  const resolvedLocale = locale === 'kk' ? 'kk-KZ' : 'ru-RU';
+  const startsAtDate = event.startsAt ? new Date(event.startsAt) : null;
+  const hasValidStartsAt = !!startsAtDate && !Number.isNaN(startsAtDate.getTime());
+  const dateLine = hasValidStartsAt
+    ? startsAtDate.toLocaleDateString(resolvedLocale, { weekday: 'long', day: 'numeric', month: 'long' })
+    : event.datetime;
+  const timeLine = hasValidStartsAt
+    ? startsAtDate.toLocaleTimeString(resolvedLocale, { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const timingText = getTimingText(startsAtDate, status, t);
+  const categoryLabel = t(`filter${event.category === 'mountains' ? 'Mountains' : event.category === 'theatre' ? 'Theatre' : event.category === 'restaurant' ? 'Restaurant' : event.category === 'sport' ? 'Sport' : 'Other'}`);
 
   async function handleJoin() {
     if (!user) return;
     if (!joined && !isActive) {
       Alert.alert('', t('joinErrorClosed'));
+      return;
+    }
+    if (!joined && isFull) {
+      Alert.alert('', t('noSpots'));
       return;
     }
 
@@ -112,10 +130,16 @@ export default function EventDetailsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
-          {event.imageUri ? <Image source={{ uri: event.imageUri }} style={styles.heroImage} /> : null}
+          {event.imageUri ? (
+            <Image source={{ uri: event.imageUri }} style={styles.heroImage} />
+          ) : (
+            <View style={[styles.heroFallback, { backgroundColor: isDark ? '#111827' : '#EEF2FF' }]}>
+              <Text style={styles.heroFallbackEmoji}>{categoryEmojis[event.category] ?? '✨'}</Text>
+            </View>
+          )}
           <View style={styles.topRow}>
             <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
-              <Text style={[styles.categoryText, { color: theme.accent }]}>{t(`filter${event.category === 'mountains' ? 'Mountains' : event.category === 'theatre' ? 'Theatre' : event.category === 'restaurant' ? 'Restaurant' : event.category === 'sport' ? 'Sport' : 'Other'}`)}</Text>
+              <Text style={[styles.categoryText, { color: theme.accent }]}>{categoryEmojis[event.category] ?? '✨'} {categoryLabel}</Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: `${eventStatusColors[status]}12` }]}>
               <View style={[styles.statusDot, { backgroundColor: eventStatusColors[status] }]} />
@@ -126,6 +150,21 @@ export default function EventDetailsScreen() {
           </View>
 
           <Text style={[styles.title, { color: theme.text }]}>{event.title}</Text>
+          <Text style={[styles.heroSubtitle, { color: theme.subtext }]}>{timingText}</Text>
+          <View style={styles.heroStats}>
+            <View style={[styles.heroStat, { backgroundColor: theme.inputBg }]}>
+              <Text style={[styles.heroStatValue, { color: theme.text }]}>{spotsLeft}</Text>
+              <Text style={[styles.heroStatLabel, { color: theme.subtext }]}>{t(spotsLeft === 0 ? 'noSpots' : 'spotsLeft')}</Text>
+            </View>
+            <View style={[styles.heroStat, { backgroundColor: theme.inputBg }]}>
+              <Text style={[styles.heroStatValue, { color: theme.text }]}>{event.participantsCount}/{event.maxParticipants}</Text>
+              <Text style={[styles.heroStatLabel, { color: theme.subtext }]}>{t('participants')}</Text>
+            </View>
+            <View style={[styles.heroStat, { backgroundColor: theme.inputBg }]}>
+              <Text style={[styles.heroStatValue, { color: eventStatusColors[status] }]}>{statusText}</Text>
+              <Text style={[styles.heroStatLabel, { color: theme.subtext }]}>{t('status')}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.detailCards}>
@@ -153,7 +192,8 @@ export default function EventDetailsScreen() {
             </View>
             <View style={styles.detailCardText}>
               <Text style={[styles.detailCardLabel, { color: theme.subtext }]}>{t('dateTimeLabel')}</Text>
-              <Text style={[styles.detailCardVal, { color: theme.text }]}>{event.datetime}</Text>
+              <Text style={[styles.detailCardVal, { color: theme.text }]}>{capitalize(dateLine)}</Text>
+              {!!timeLine && <Text style={[styles.detailCardDistance, { color: theme.accent }]}>{timeLine}</Text>}
             </View>
           </View>
 
@@ -205,6 +245,12 @@ export default function EventDetailsScreen() {
               {!!event.hiddenParticipantsCount ? ` (+${event.hiddenParticipantsCount} ${t('hiddenCount')})` : ''}
             </Text>
           </View>
+          <View style={[styles.progressTrack, { backgroundColor: theme.inputBg }]}>
+            <View style={[styles.progressFill, { backgroundColor: isFull ? theme.warning : theme.accent, width: `${progress}%` }]} />
+          </View>
+          <Text style={[styles.progressHint, { color: theme.subtext }]}>
+            {isFull ? t('filled') : `${t('spotsLeft')}: ${spotsLeft}`}
+          </Text>
           <TouchableOpacity
             style={[styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
             onPress={() => navigation.navigate('EventParticipants', { eventId: event.id, eventTitle: event.title })}
@@ -213,19 +259,38 @@ export default function EventDetailsScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: shadowHex, shadowOpacity }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('meetingPlanTitle')}</Text>
+          <View style={styles.planList}>
+            <View style={styles.planItem}>
+              <Text style={styles.planIcon}>🕘</Text>
+              <Text style={[styles.planText, { color: theme.subtext }]}>{t('meetingPlanArrive')}</Text>
+            </View>
+            <View style={styles.planItem}>
+              <Text style={styles.planIcon}>💬</Text>
+              <Text style={[styles.planText, { color: theme.subtext }]}>{t('meetingPlanChat')}</Text>
+            </View>
+            <View style={styles.planItem}>
+              <Text style={styles.planIcon}>⭐</Text>
+              <Text style={[styles.planText, { color: theme.subtext }]}>{t('meetingPlanReview')}</Text>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.actions}>
           <TouchableOpacity
             style={[
               styles.primaryButton,
               { backgroundColor: joined ? theme.danger : theme.accent },
-              (!isActive && !joined) && { backgroundColor: theme.border }
+              (!isActive && !joined) && { backgroundColor: theme.border },
+              (!joined && isFull) && { backgroundColor: theme.border }
             ]}
             onPress={handleJoin}
-            disabled={!joined && !isActive}
+            disabled={!joined && (!isActive || isFull)}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>
-              {joined ? t('leaveEventBtn') : isActive ? t('joinBtn') : statusText}
+              {joined ? t('leaveEventBtn') : isFull ? t('filled') : isActive ? t('joinBtn') : statusText}
             </Text>
           </TouchableOpacity>
 
@@ -299,6 +364,29 @@ export default function EventDetailsScreen() {
   );
 }
 
+function capitalize(value: string) {
+  if (!value) return value;
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function getTimingText(startsAt: Date | null, status: EventStatus, t: (key: string, defaultText?: string) => string) {
+  if (status === 'finished') return t('eventTimingFinished');
+  if (status === 'cancelled') return t('eventTimingCancelled');
+  if (!startsAt || Number.isNaN(startsAt.getTime())) return t('eventTimingActive');
+
+  const diffMs = startsAt.getTime() - Date.now();
+  if (diffMs <= 0) return t('eventTimingNow');
+
+  const diffMinutes = Math.ceil(diffMs / 60000);
+  if (diffMinutes < 60) return `${t('eventTimingIn')} ${diffMinutes} ${t('minUnit')}`;
+
+  const diffHours = Math.ceil(diffMinutes / 60);
+  if (diffHours < 24) return `${t('eventTimingIn')} ${diffHours} ${t('hourUnit')}`;
+
+  const diffDays = Math.ceil(diffHours / 24);
+  return `${t('eventTimingIn')} ${diffDays} ${t('dayUnit')}`;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 36, width: '100%', maxWidth: 820, alignSelf: 'center' },
@@ -309,6 +397,8 @@ const styles = StyleSheet.create({
     shadowRadius: 12, elevation: 2,
   },
   heroImage: { height: 210, marginHorizontal: -16, marginTop: -16, marginBottom: 16, borderRadius: 0 },
+  heroFallback: { height: 170, marginHorizontal: -16, marginTop: -16, marginBottom: 16, alignItems: 'center', justifyContent: 'center' },
+  heroFallbackEmoji: { fontSize: 58 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   categoryBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   categoryText: { fontWeight: '700', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -316,6 +406,11 @@ const styles = StyleSheet.create({
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 12, fontWeight: '700' },
   title: { fontSize: 24, fontWeight: '800', lineHeight: 32 },
+  heroSubtitle: { fontSize: 14, fontWeight: '700', marginTop: 6 },
+  heroStats: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  heroStat: { flex: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  heroStatValue: { fontSize: 16, fontWeight: '900', textAlign: 'center' },
+  heroStatLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 3 },
   detailCards: { gap: 10, marginBottom: 16 },
   detailCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 16, padding: 14,
@@ -340,6 +435,13 @@ const styles = StyleSheet.create({
   description: { fontSize: 14, lineHeight: 22, marginTop: 8 },
   participantsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   participantsCount: { fontSize: 16, fontWeight: '800' },
+  progressTrack: { height: 8, borderRadius: 999, overflow: 'hidden', marginBottom: 8 },
+  progressFill: { height: '100%', borderRadius: 999 },
+  progressHint: { fontSize: 12, fontWeight: '700', marginBottom: 12 },
+  planList: { gap: 12, marginTop: 14 },
+  planItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  planIcon: { fontSize: 18, lineHeight: 24 },
+  planText: { flex: 1, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   actions: { gap: 10, marginBottom: 16 },
   primaryButton: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
