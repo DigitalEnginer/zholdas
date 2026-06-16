@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -38,7 +37,7 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [sentTo, setSentTo] = React.useState('');
+  const [showSuccessModal, setShowSuccessModal] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(false);
 
   async function handleSend() {
@@ -69,12 +68,8 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
-    setSentTo(normalizedEmail);
     haptics.success();
-
-    if (Platform.OS !== 'web') {
-      Alert.alert(t('restorePassword'), t('resetEmailSent'));
-    }
+    setShowSuccessModal(true);
   }
 
   return (
@@ -104,7 +99,6 @@ export default function ForgotPasswordScreen() {
               onChangeText={value => {
                 setEmail(value);
                 setError('');
-                setSentTo('');
               }}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -113,11 +107,6 @@ export default function ForgotPasswordScreen() {
               onBlur={() => setIsFocused(false)}
             />
             {error ? <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text> : null}
-            {sentTo ? (
-              <Text style={[styles.successText, { color: theme.success }]}>
-                {t('resetEmailSentTo')} {sentTo}
-              </Text>
-            ) : null}
 
             <TouchableOpacity
               style={[styles.primaryBtn, loading && styles.disabled]}
@@ -141,6 +130,44 @@ export default function ForgotPasswordScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {showSuccessModal && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <LinearGradient
+              colors={[theme.accent, '#4F46E5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalIconContainer}
+            >
+              <Text style={styles.modalIconEmoji}>✉️</Text>
+            </LinearGradient>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              {t('registerSuccessTitle')}
+            </Text>
+            <Text style={[styles.modalText, { color: theme.subtext }]}>
+              {t('resetEmailSent')}
+            </Text>
+            <TouchableOpacity
+              style={styles.modalBtn}
+              onPress={() => {
+                setShowSuccessModal(false);
+                navigation.goBack();
+              }}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[theme.accent, '#4F46E5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.modalBtnGradient}
+              >
+                <Text style={styles.modalBtnText}>OK</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -178,11 +205,50 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase' },
   input: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, borderWidth: 1.5 },
   errorText: { fontSize: 12, marginTop: 8, fontWeight: '600' },
-  successText: { fontSize: 13, marginTop: 10, fontWeight: '700', lineHeight: 18 },
   primaryBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 24 },
   primaryGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#FFF', fontSize: 16, fontWeight: '900' },
   disabled: { opacity: 0.65 },
   secondaryBtn: { alignItems: 'center', paddingTop: 18 },
   secondaryText: { fontSize: 15, fontWeight: '800' },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 1000,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 32,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 8,
+  },
+  modalIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  modalIconEmoji: { fontSize: 32 },
+  modalTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 12, letterSpacing: -0.3 },
+  modalText: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalBtn: { width: '100%', borderRadius: 16, overflow: 'hidden' },
+  modalBtnGradient: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  modalBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
 });
