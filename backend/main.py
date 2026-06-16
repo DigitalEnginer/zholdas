@@ -51,10 +51,11 @@ def parse_csv_env(value: str):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=parse_csv_env(BACKEND_CORS_ORIGINS),
+    allow_origin_regex=BACKEND_CORS_ORIGIN_REGEX or None,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 

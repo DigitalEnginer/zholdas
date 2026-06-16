@@ -182,10 +182,15 @@ export default function CreateEventScreen() {
         return;
       }
 
-      const event = await createEvent(payload);
+      await createEvent(payload);
       Alert.alert(t('done'), t('eventCreated'), [
-        { text: t('openChatAction'), onPress: () => navigation.replace('Chat', { eventId: event.id, eventTitle: event.title }) },
-        { text: t('toMap'), onPress: () => navigation.navigate('Main') },
+        {
+          text: t('done'),
+          onPress: () => navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          }),
+        },
       ]);
     } catch (e: any) {
       Alert.alert(t('error'), userMessageFromModerationError(e.message) ?? t('eventCreateSubmit'));
