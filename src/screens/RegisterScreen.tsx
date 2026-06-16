@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, SafeAreaView,
+  KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -169,6 +169,11 @@ export default function RegisterScreen() {
       const year = birthYear ? parseInt(birthYear, 10) : CURRENT_YEAR - 18;
       await register(name.trim(), email.trim(), password, avatarIndex, bio.trim(), gender, year);
       haptics.success();
+      Alert.alert(
+        t('registerSuccessTitle'),
+        t('registerSuccessMessage'),
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
     } catch (err: any) {
       haptics.error();
       setErrors({ email: err.message });
