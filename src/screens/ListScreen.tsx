@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  SafeAreaView, TextInput, Alert, ScrollView,
+  SafeAreaView, TextInput, Alert, ScrollView, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,6 +23,10 @@ const FILTERS: Array<{ key: 'all' | EventCategory; labelKey: string }> = [
   { key: 'sport', labelKey: 'filterSport' },
   { key: 'other', labelKey: 'filterOther' },
 ];
+const CONTENT_MAX_WIDTH = 1120;
+const LIST_MAX_WIDTH = 1040;
+const WEB_BOTTOM_SPACE = 128;
+const NATIVE_BOTTOM_SPACE = 110;
 
 export default function ListScreen() {
   const navigation = useNavigation<Nav>();
@@ -84,6 +88,7 @@ export default function ListScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <View style={styles.pageFrame}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
@@ -256,19 +261,44 @@ export default function ListScreen() {
           </View>
         }
       />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, width: '100%', maxWidth: 960, alignSelf: 'center' },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  pageFrame: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'web' ? 24 : 14,
+    paddingBottom: 10,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 16,
+  },
   titleBlock: { flex: 1, paddingRight: 12 },
-  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, marginTop: 2, fontWeight: '500' },
-  createBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  createBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  title: { fontSize: 30, fontWeight: '900' },
+  subtitle: { fontSize: 14, marginTop: 4, fontWeight: '700' },
+  createBtn: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 42,
+    justifyContent: 'center',
+  },
+  createBtnText: { fontSize: 14, fontWeight: '900', color: '#FFF' },
   headerChatBtn: {
     width: 38,
     height: 38,
@@ -276,65 +306,84 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  searchRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 6 },
   searchInput: {
     flex: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 14,
+    minHeight: 46,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    fontSize: 15,
     borderWidth: 1,
   },
   joinedToggle: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+    minHeight: 46,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 14,
     borderWidth: 1,
     justifyContent: 'center',
   },
-  joinedToggleText: { fontSize: 13, fontWeight: '700' },
+  joinedToggleText: { fontSize: 14, fontWeight: '900' },
   filtersScrollContainer: {
     width: '100%',
-    maxWidth: 960,
+    maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   filtersScroll: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    minHeight: 36,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
   },
-  filterLabel: { fontSize: 13, fontWeight: '600' },
+  filterLabel: { fontSize: 13, fontWeight: '800' },
   quickFilters: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    paddingHorizontal: 16,
+    gap: 8,
+    paddingHorizontal: 20,
     paddingBottom: 8,
     width: '100%',
-    maxWidth: 960,
+    maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: 'center',
   },
   quickChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
   },
-  quickText: { fontSize: 12, fontWeight: '600' },
-  count: { fontSize: 12, paddingHorizontal: 16, marginBottom: 4, width: '100%', maxWidth: 960, alignSelf: 'center', fontWeight: '500' },
-  list: { paddingVertical: 4, paddingBottom: 24, paddingHorizontal: 0, width: '100%', maxWidth: 792, alignSelf: 'center' },
+  quickText: { fontSize: 12, fontWeight: '800' },
+  count: {
+    fontSize: 13,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    fontWeight: '800',
+  },
+  list: {
+    paddingTop: 4,
+    paddingBottom: Platform.OS === 'web' ? WEB_BOTTOM_SPACE : NATIVE_BOTTOM_SPACE,
+    paddingHorizontal: 20,
+    width: '100%',
+    maxWidth: LIST_MAX_WIDTH,
+    alignSelf: 'center',
+  },
   empty: {
     alignItems: 'center',
-    marginHorizontal: 16,
     marginTop: 48,
     paddingVertical: 32,
     paddingHorizontal: 18,
