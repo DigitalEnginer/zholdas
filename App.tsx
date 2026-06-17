@@ -9,6 +9,8 @@ import { BadgeProvider } from './src/context/BadgeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import PwaInstallPrompt from './src/components/PwaInstallPrompt';
+import AppErrorBoundary from './src/components/AppErrorBoundary';
+import ConnectivityOverlay from './src/components/ConnectivityOverlay';
 
 function Root() {
   const { isDark } = useTheme();
@@ -16,6 +18,7 @@ function Root() {
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppNavigator />
+      <ConnectivityOverlay />
       <PwaInstallPrompt />
     </>
   );
@@ -23,16 +26,18 @@ function Root() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <EventsProvider>
-            <BadgeProvider>
-              <Root />
-            </BadgeProvider>
-          </EventsProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <EventsProvider>
+              <BadgeProvider>
+                <Root />
+              </BadgeProvider>
+            </EventsProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
 }

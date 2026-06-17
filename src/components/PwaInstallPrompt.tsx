@@ -7,6 +7,7 @@ import {
   Platform,
   Dimensions,
   Animated,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
@@ -19,11 +20,34 @@ export default function PwaInstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const slideAnim = useRef(new Animated.Value(300)).current;
+  const visibleRef = useRef(false);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    const checkPwaStatus = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    let isMounted = true;
+
+    const showPrompt = () => {
+      if (!isMounted || visibleRef.current) return;
+      visibleRef.current = true;
+      setIsVisible(true);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 9,
+      }).start();
+    };
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      showPrompt();
+    };
+
+    async function checkPwaStatus() {
       const isMobile = Dimensions.get('window').width < 768;
       if (!isMobile) return;
 
@@ -32,48 +56,32 @@ export default function PwaInstallPrompt() {
         (window.navigator as any).standalone === true;
       if (isStandalone) return;
 
-      const dismissed = await AsyncStorage.getItem('pwa_prompt_dismissed');
-      if (dismissed === 'true') return;
+      const dismissedAt = await AsyncStorage.getItem('pwa_prompt_dismissed_at');
+      if (dismissedAt && Date.now() - Number(dismissedAt) < 7 * 24 * 60 * 60 * 1000) return;
 
       const userAgent = window.navigator.userAgent.toLowerCase();
       const isApple = /iphone|ipad|ipod/.test(userAgent);
       setIsIOS(isApple);
 
-      const showPrompt = () => {
-        setIsVisible(true);
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 9,
-        }).start();
-      };
-
       if (isApple) {
-        const timer = setTimeout(showPrompt, 3000);
-        return () => clearTimeout(timer);
+        timer = setTimeout(showPrompt, 3000);
+        return;
       }
-
-      const handleBeforeInstallPrompt = (e: any) => {
-        e.preventDefault();
-        setDeferredPrompt(e);
-        showPrompt();
-      };
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-      const fallbackTimer = setTimeout(() => {
-        if (!isVisible) showPrompt();
-      }, 6000);
-
-      return () => {
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        clearTimeout(fallbackTimer);
-      };
-    };
+      fallbackTimer = setTimeout(showPrompt, 6000);
+    }
 
     checkPwaStatus();
-  }, []);
+
+    return () => {
+      isMounted = false;
+      if (timer) clearTimeout(timer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, [slideAnim]);
 
   const handleDismiss = async () => {
     Animated.timing(slideAnim, {
@@ -82,7 +90,8 @@ export default function PwaInstallPrompt() {
       useNativeDriver: true,
     }).start(async () => {
       setIsVisible(false);
-      await AsyncStorage.setItem('pwa_prompt_dismissed', 'true');
+      visibleRef.current = false;
+      await AsyncStorage.setItem('pwa_prompt_dismissed_at', String(Date.now()));
     });
   };
 
@@ -96,8 +105,9 @@ export default function PwaInstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
-      await AsyncStorage.setItem('pwa_prompt_dismissed', 'true');
+      await AsyncStorage.setItem('pwa_prompt_dismissed_at', String(Date.now()));
       setIsVisible(false);
+      visibleRef.current = false;
     }
     setDeferredPrompt(null);
   };
@@ -116,7 +126,10 @@ export default function PwaInstallPrompt() {
       ]}
     >
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>{t('pwaInstallTitle')}</Text>
+        <View style={styles.titleRow}>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} />
+          <Text style={[styles.title, { color: theme.text }]}>{t('pwaInstallTitle')}</Text>
+        </View>
         <TouchableOpacity onPress={handleDismiss} style={styles.closeButton}>
           <Text style={[styles.closeText, { color: theme.subtext }]}>x</Text>
         </TouchableOpacity>
@@ -153,8 +166,8 @@ const styles = StyleSheet.create({
     bottom: 24,
     left: 16,
     right: 16,
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 22,
     borderWidth: 1,
     zIndex: 9999,
     shadowColor: '#101828',
@@ -172,6 +185,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '800',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logo: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
   },
   closeButton: {
     padding: 4,
@@ -193,8 +216,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   installButton: {
-    paddingVertical: 10,
-    borderRadius: 12,
+    minHeight: 48,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

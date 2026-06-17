@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Linking, Platform } from 'react-native';
+import { ActivityIndicator, Image, View, Text, StyleSheet, Linking, Platform } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -38,6 +38,8 @@ import { useLanguage } from '../context/LanguageContext';
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
+const WEB_TAB_BAR_HEIGHT = 94;
+const NATIVE_TAB_BAR_HEIGHT = 84;
 
 const MapIcon = ({ color }: { color: string; focused: boolean }) => (
   <View style={{ width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
@@ -239,6 +241,19 @@ function BannedAccountScreen() {
   );
 }
 
+function BrandedLoadingScreen() {
+  const { t } = useLanguage();
+
+  return (
+    <View style={styles.loadingContainer}>
+      <Image source={require('../../assets/icon.png')} style={styles.loadingLogo} />
+      <Text style={styles.loadingTitle}>Жолдас</Text>
+      <Text style={styles.loadingText}>{t('loadingBrandText')}</Text>
+      <ActivityIndicator color="#7167FF" size="small" style={styles.loadingSpinner} />
+    </View>
+  );
+}
+
 export default function AppNavigator() {
   const { user, isLoading } = useAuth();
   const { theme, isDark } = useTheme();
@@ -291,7 +306,7 @@ export default function AppNavigator() {
     return () => subscription.remove();
   }, []);
 
-  if (isLoading || showOnboarding === null) return null;
+  if (isLoading || showOnboarding === null) return <BrandedLoadingScreen />;
 
   const navTheme = isDark
     ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: theme.bg, card: theme.card } }
@@ -363,8 +378,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.22,
     shadowRadius: 22,
-    height: 84,
-    paddingBottom: 18,
+    height: Platform.OS === 'web' ? WEB_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_HEIGHT,
+    paddingBottom: Platform.OS === 'web' ? 26 : 18,
     paddingTop: 9,
   },
   tabLabel: {
@@ -449,5 +464,32 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 20,
     overflow: 'hidden',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+    backgroundColor: '#0D1426',
+  },
+  loadingLogo: {
+    width: 88,
+    height: 88,
+    borderRadius: 26,
+    marginBottom: 22,
+  },
+  loadingTitle: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '900',
+  },
+  loadingText: {
+    color: 'rgba(255,255,255,0.66)',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  loadingSpinner: {
+    marginTop: 22,
   },
 });
