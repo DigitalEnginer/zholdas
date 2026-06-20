@@ -133,64 +133,129 @@ export default function ActivityScreen() {
   }
 
   const loadFeed = useCallback(async () => {
-    const [{ data: joins }, { data: creates }, { data: blocks }] = await Promise.all([
-      supabase
-        .from('event_participants')
-        .select('user_id, joined_at, event_id, profiles(name, avatar, is_banned), events(title)')
-        .order('joined_at', { ascending: false })
-        .limit(30),
-      supabase
-        .from('events')
-        .select('id, title, created_at, created_by, profiles(name, avatar, is_banned)')
-        .not('created_by', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(15),
-      user
-        ? supabase.from('blocks').select('blocked_id').eq('blocker_id', user.id)
-        : Promise.resolve({ data: [] }),
-    ]);
-    const blockedIds = new Set((blocks ?? []).map((b: any) => b.blocked_id));
-
-    const joinItems: ActivityItem[] = (joins ?? [])
-      .filter((j: any) => !(j.profiles as any)?.is_banned)
-      .filter((j: any) => !blockedIds.has(j.user_id))
-      .filter((j: any) => !user || j.user_id !== user.id)
-      .map((j: any) => ({
-        id: `join-${j.event_id}-${j.user_id}`,
-        type: 'join' as const,
-        userId: j.user_id,
-        userName: (j.profiles as any)?.name ?? t('userLabel'),
-        userAvatar: (j.profiles as any)?.avatar ?? '🧑',
-        eventId: j.event_id,
-        eventTitle: (j.events as any)?.title ?? '',
-        timestamp: new Date(j.joined_at),
-      }));
-
-    const createItems: ActivityItem[] = (creates ?? [])
-      .filter((e: any) => !(e.profiles as any)?.is_banned)
-      .filter((e: any) => !blockedIds.has(e.created_by))
-      .filter((e: any) => !user || e.created_by !== user.id)
-      .map((e: any) => ({
-        id: `create-${e.id}`,
-        type: 'create' as const,
-        userId: e.created_by ?? '',
-        userName: (e.profiles as any)?.name ?? t('userLabel'),
-        userAvatar: (e.profiles as any)?.avatar ?? '🧑',
-        eventId: e.id,
-        eventTitle: e.title,
-        timestamp: new Date(e.created_at),
-      }));
-
-    let all = [...joinItems, ...createItems]
-      .filter(item => item.eventTitle);
-
-    if (friendsOnly) {
-      all = all.filter(item => friendIds.includes(item.userId));
+    if (!user) {
+      setFeed([]);
+      setRefreshing(false);
+      return;
     }
 
-    all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    setFeed(all);
-    setRefreshing(false);
+    try {
+      // 1. Get blocked profiles
+      const { data: blocks } = await supabase
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', user.id);
+      const blockedIds = new Set((blocks ?? []).map((b: any) => b.blocked_id));
+
+      let joinsData: any[] = [];
+      let createsData: any[] = [];
+
+      if (friendsOnly) {
+        if (friendIds.length === 0) {
+          setFeed([]);
+          setRefreshing(false);
+          return;
+        }
+
+        // Query activities of friends
+        const [{ data: joins }, { data: creates }] = await Promise.all([
+          supabase
+            .from('event_participants')
+            .select('user_id, joined_at, event_id, profiles(name, avatar, is_banned), events(title)')
+            .in('user_id', friendIds)
+            .order('joined_at', { ascending: false })
+            .limit(50),
+          supabase
+            .from('events')
+            .select('id, title, created_at, created_by, profiles(name, avatar, is_banned)')
+            .in('created_by', friendIds)
+            .order('created_at', { ascending: false })
+            .limit(30),
+        ]);
+        joinsData = joins ?? [];
+        createsData = creates ?? [];
+      } else {
+        // Query activities related only to events user participates in or created
+        const [{ data: participations }, { data: created }] = await Promise.all([
+          supabase
+            .from('event_participants')
+            .select('event_id')
+            .eq('user_id', user.id),
+          supabase
+            .from('events')
+            .select('id')
+            .eq('created_by', user.id),
+        ]);
+        const pIds = (participations ?? []).map((p: any) => p.event_id);
+        const cIds = (created ?? []).map((e: any) => e.id);
+        const userEventIds = Array.from(new Set([...pIds, ...cIds]));
+
+        if (userEventIds.length === 0) {
+          setFeed([]);
+          setRefreshing(false);
+          return;
+        }
+
+        const [{ data: joins }, { data: creates }] = await Promise.all([
+          supabase
+            .from('event_participants')
+            .select('user_id, joined_at, event_id, profiles(name, avatar, is_banned), events(title)')
+            .in('event_id', userEventIds)
+            .order('joined_at', { ascending: false })
+            .limit(50),
+          supabase
+            .from('events')
+            .select('id, title, created_at, created_by, profiles(name, avatar, is_banned)')
+            .in('id', userEventIds)
+            .order('created_at', { ascending: false })
+            .limit(30),
+        ]);
+        joinsData = joins ?? [];
+        createsData = creates ?? [];
+      }
+
+      // Map joins
+      const joinItems: ActivityItem[] = joinsData
+        .filter((j: any) => !(j.profiles as any)?.is_banned)
+        .filter((j: any) => !blockedIds.has(j.user_id))
+        .filter((j: any) => j.user_id !== user.id) // exclude self-joins
+        .map((j: any) => ({
+          id: `join-${j.event_id}-${j.user_id}`,
+          type: 'join' as const,
+          userId: j.user_id,
+          userName: (j.profiles as any)?.name ?? t('userLabel'),
+          userAvatar: (j.profiles as any)?.avatar ?? '🧑',
+          eventId: j.event_id,
+          eventTitle: (j.events as any)?.title ?? '',
+          timestamp: new Date(j.joined_at),
+        }));
+
+      // Map creations
+      const createItems: ActivityItem[] = createsData
+        .filter((e: any) => !(e.profiles as any)?.is_banned)
+        .filter((e: any) => !blockedIds.has(e.created_by))
+        .filter((e: any) => e.created_by !== user.id) // exclude self-creations
+        .map((e: any) => ({
+          id: `create-${e.id}`,
+          type: 'create' as const,
+          userId: e.created_by ?? '',
+          userName: (e.profiles as any)?.name ?? t('userLabel'),
+          userAvatar: (e.profiles as any)?.avatar ?? '🧑',
+          eventId: e.id,
+          eventTitle: e.title,
+          timestamp: new Date(e.created_at),
+        }));
+
+      const all = [...joinItems, ...createItems]
+        .filter(item => item.eventTitle);
+
+      all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      setFeed(all);
+    } catch (err) {
+      console.error('Error loading activity feed:', err);
+    } finally {
+      setRefreshing(false);
+    }
   }, [friendsOnly, friendIds, user, t]);
 
   useEffect(() => {
