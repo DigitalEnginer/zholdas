@@ -95,6 +95,7 @@ export default function CreateEventScreen() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+  const [visibility, setVisibility] = useState<'public' | 'friends'>('public');
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -212,6 +213,7 @@ export default function CreateEventScreen() {
     setAddressInput(editingEvent.address ?? '');
     setImageUri(editingEvent.imageUri ?? null);
     setGenderFilter(editingEvent.genderFilter ?? 'all');
+    setVisibility(editingEvent.visibility ?? 'public');
     setMinAge(editingEvent.minAge ? String(editingEvent.minAge) : '');
     setMaxAge(editingEvent.maxAge ? String(editingEvent.maxAge) : '');
   }, [editingEvent?.id]);
@@ -314,6 +316,7 @@ export default function CreateEventScreen() {
         genderFilter,
         minAge: minA,
         maxAge: maxA,
+        visibility,
       };
 
       if (eventId) {
@@ -582,6 +585,43 @@ export default function CreateEventScreen() {
           <Text style={[styles.coords, { color: theme.subtext }]}>
             {coordinate.latitude.toFixed(4)}, {coordinate.longitude.toFixed(4)}
           </Text>
+        </View>
+
+        {/* Кто может видеть ивент (Видимость) */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.subtext }]}>{t('visibilityLabel')}</Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={[
+                styles.filterBtn,
+                {
+                  backgroundColor: visibility === 'public' ? theme.accentLight : theme.card,
+                  borderColor: visibility === 'public' ? theme.accent : theme.border,
+                }
+              ]}
+              onPress={() => setVisibility('public')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterLabel, { color: visibility === 'public' ? theme.accent : theme.text }]}>
+                🌍 {t('visibilityPublic')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterBtn,
+                {
+                  backgroundColor: visibility === 'friends' ? theme.accentLight : theme.card,
+                  borderColor: visibility === 'friends' ? theme.accent : theme.border,
+                }
+              ]}
+              onPress={() => setVisibility('friends')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterLabel, { color: visibility === 'friends' ? theme.accent : theme.text }]}>
+                👥 {t('visibilityFriends')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.section}>

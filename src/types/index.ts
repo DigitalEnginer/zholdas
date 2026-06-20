@@ -28,6 +28,7 @@ export interface Event {
   status?: EventStatus;
   cancelReason?: string;
   startsAt?: string;
+  visibility?: 'public' | 'friends';
 }
 
 export interface Message {

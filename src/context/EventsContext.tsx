@@ -45,6 +45,7 @@ function transformEvent(e: any): Event {
     status: e.status ?? 'active',
     cancelReason: e.cancel_reason ?? undefined,
     startsAt: e.starts_at ?? undefined,
+    visibility: e.visibility ?? 'public',
   };
 }
 
@@ -70,6 +71,7 @@ function toEventUpdate(data: Partial<Omit<Event, 'id' | 'participantsCount' | 'j
   if (data.status !== undefined) update.status = data.status;
   if (data.cancelReason !== undefined) update.cancel_reason = data.cancelReason ?? null;
   if (data.startsAt !== undefined) update.starts_at = data.startsAt ?? null;
+  if (data.visibility !== undefined) update.visibility = data.visibility;
   return update;
 }
 
@@ -102,12 +104,83 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       let nextEvents = data.filter((e: any) => !e.profiles?.is_banned).map(transformEvent);
 
       if (user) {
+        // Fetch blocks
         const { data: blocks } = await supabase
           .from('blocks')
           .select('blocked_id')
           .eq('blocker_id', user.id);
         const blockedIds = new Set((blocks ?? []).map((b: any) => b.blocked_id));
-        nextEvents = nextEvents.filter((event: Event) => !event.createdBy || !blockedIds.has(event.createdBy));
+
+        // Fetch accepted friends
+        const { data: friendsData } = await supabase
+          .from('friend_requests')
+          .select('from_user_id, to_user_id')
+          .eq('status', 'accepted')
+          .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`);
+        const friendIds = new Set(
+          (friendsData ?? []).map((r: any) =>
+            r.from_user_id === user.id ? r.to_user_id : r.from_user_id
+          )
+        );
+
+        const currentYear = new Date().getFullYear();
+        const userAge = user.birthYear ? currentYear - user.birthYear : undefined;
+        const userGender = user.gender;
+
+        nextEvents = nextEvents.filter((event: Event) => {
+          // 1. Block check
+          if (event.createdBy && blockedIds.has(event.createdBy)) {
+            return false;
+          }
+
+          // 2. Creator always sees their own events
+          if (event.createdBy === user.id) {
+            return true;
+          }
+
+          // 3. Visibility check: only friends see if visibility is 'friends'
+          if (event.visibility === 'friends') {
+            if (!event.createdBy || !friendIds.has(event.createdBy)) {
+              return false;
+            }
+          }
+
+          // 4. Gender filter check
+          if (event.genderFilter && event.genderFilter !== 'all') {
+            if (!userGender || userGender === 'not_specified' || userGender !== event.genderFilter) {
+              return false;
+            }
+          }
+
+          // 5. Age filter check
+          if (event.minAge !== undefined || event.maxAge !== undefined) {
+            if (userAge === undefined) {
+              return false;
+            }
+            if (event.minAge !== undefined && userAge < event.minAge) {
+              return false;
+            }
+            if (event.maxAge !== undefined && userAge > event.maxAge) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+      } else {
+        // If not logged in, hide friends-only events and events with restrictions
+        nextEvents = nextEvents.filter((event: Event) => {
+          if (event.visibility === 'friends') {
+            return false;
+          }
+          if (event.genderFilter && event.genderFilter !== 'all') {
+            return false;
+          }
+          if (event.minAge !== undefined || event.maxAge !== undefined) {
+            return false;
+          }
+          return true;
+        });
       }
 
       setEvents(nextEvents);
@@ -152,6 +225,7 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       max_age: data.maxAge ?? null,
       status: data.status ?? 'active',
       starts_at: data.startsAt ?? null,
+      visibility: data.visibility ?? 'public',
     }).select().single();
 
     if (error) throw new Error(error.message);
