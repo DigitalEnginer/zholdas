@@ -128,8 +128,8 @@ export default function ChatScreen() {
       });
     }
   }, [event, eventsLoading]);
-  const canManageEvent = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
-  const canModerateChat = canManageEvent;
+  const canManageEvent = !!user && event?.createdBy === user.id;
+  const canModerateChat = !!user && (event?.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
   const joined = !!user && isJoined(eventId, user.id);
   const eventStatus = event?.status ?? 'active';
   const isActive = eventStatus === 'active';

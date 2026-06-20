@@ -59,7 +59,7 @@ export default function EventDetailsScreen() {
   const currentEvent = event;
   const status = currentEvent.status ?? 'active';
   const joined = !!user && isJoined(event.id, user.id);
-  const canManage = !!user && (currentEvent.createdBy === user.id || user.role === 'moderator' || user.role === 'admin');
+  const canManage = !!user && currentEvent.createdBy === user.id;
   const isActive = status === 'active';
   const statusText = t(status === 'finished' ? 'statusFinished' : status === 'cancelled' ? 'statusCancelled' : 'statusActive');
   const isFull = event.participantsCount >= event.maxParticipants;
